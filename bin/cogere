@@ -1,0 +1,416 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+use lib '/opt/sv/lib';
+
+use SV::Logger;
+use Getopt::Long qw/:config no_ignore_case/;
+use Net::OpenSSH;
+use Switch;
+use JSON;
+
+my ($login, $pass, $uid, $gid) = getpwuid($<);
+my $json_o = JSON->new->utf8;
+
+my %log = (
+    'user' => $login,
+);
+
+open my $in_garb,  '<', '/dev/null';
+open my $out_garb, '>', '/dev/null';
+open my $err_garb, '>', '/dev/null';
+
+my $def_base_dir = '/opt/sv/cogere';
+my $base_dir     = $def_base_dir;
+my $def_config   = "$base_dir/cogere.conf";
+my ($hosts_conf, $priv_keys, $pub_keys, $genpass,
+   $ssh_keygen, $ssh_copy_id, $username, $logger,
+   $log_host, $log_port, $log_proto, $log_name);
+
+if (!@ARGV) {
+    help();
+    exit;
+}
+
+my %args;
+GetOptions(
+    'h|help'      => \$args{'help'},
+    'f|config'    => \$args{'config'},
+    'host-list=s' => \$args{'host-list'},
+    'reason=s'    => \$args{'reason'},
+    'rekey-hosts' => \$args{'rekey-hosts'},
+    'add-host'    => \$args{'add-host'},
+    'del-host'    => \$args{'del-host'},
+    'hostname=s'  => \$args{'hostname'},
+    'ipaddr=s'    => \$args{'ipaddr'},
+    'username=s'  => \$args{'username'},
+) or die "Invalid arguments. See $0 -h\n";
+
+my $command = $ARGV[0];
+
+if ($args{'config'}) {
+    set_globals($args{'config'});
+}
+else {
+    set_globals($def_config);
+}
+
+check_globals();
+create_logger();
+
+if ($args{'help'}) {
+    help();
+    exit;
+}
+elsif ($args{'del-host'}) {
+    process_del_host($args{'hostname'});
+    exit;
+}
+elsif ($args{'add-host'}) {
+    process_add_host($args{'hostname'}, $args{'ipaddr'}, $args{'username'});
+    exit;
+}
+elsif ($args{'rekey-hosts'}) {
+    process_rekey_host($args{'host-list'});
+    exit;
+}
+elsif ($args{'host-list'}) {
+    process_host_list($args{'host-list'});
+    exit;
+}
+else {
+    die "No operations provided. See $0 -h\n";
+}
+
+sub set_globals {
+    my ($config) = @_;
+
+    open my $config_h, '<', $config or die "Failed to open '$config': $!\n";
+    while (<$config_h>) {
+        chomp;
+        next if /^#|^\s*$/;
+        my ($var, $val) = split /=/;
+
+        switch ($var) {
+            case /^base_dir$/    { $base_dir    = $val }
+            case /^hosts_conf$/  { $hosts_conf  = "$base_dir/$val" }
+            case /^priv_keys$/   { $priv_keys   = "$base_dir/$val" }
+            case /^pub_keys$/    { $pub_keys    = "$base_dir/$val" }
+            case /^genpass$/     { $genpass     = $val }
+            case /^ssh_keygen$/  { $ssh_keygen  = $val }
+            case /^ssh_copy_id$/ { $ssh_copy_id = $val }
+            case /^username$/    { $username    = $val }
+            case /^log_host$/    { $log_host    = $val }
+            case /^log_port$/    { $log_port    = $val }
+            case /^log_proto$/   { $log_proto   = $val }
+            case /^log_name$/    { $log_name    = $val }
+            else                 { warn "'$var' not recognized configuration parameter\n" }
+        }
+    }
+    
+    return;
+}
+
+sub check_globals {
+    $base_dir or die "Base directory not defined\n";
+    die "Base directory '$base_dir' not found\n" if !-d $base_dir;
+
+    $hosts_conf or die "Hosts configuration not defined\n";
+    die "Hosts configuration '$hosts_conf' not found\n" if !-f $hosts_conf;
+
+    $priv_keys or die "Private keys directory not defined\n";
+    die "Private keys directory '$priv_keys' not found\n" if !-d $priv_keys;
+    $pub_keys or die "Public keys directory not defined\n";
+    die "Public keys directory '$pub_keys' not found\n" if !-d $pub_keys;
+
+    $genpass or die "genpass is not defined\n";
+    die "genpass '$genpass' is not executable\n" if !-x $genpass;
+
+    $ssh_keygen or die "ssh_keygen is not defined\n";
+    die "ssh-keygen '$ssh_keygen' is not executable\n" if !-x $ssh_keygen;
+    $ssh_copy_id or die "ssh_copy_id is not defined\n";
+    die "ssh-copy-id '$ssh_copy_id' is not executable\n" if !-x $ssh_copy_id;
+
+    $username  or die "Username is not defined\n";
+    $log_host  or die "Logging host is not defined\n";
+    $log_port  or die "Logging port is not defined\n";
+    $log_proto or die "Logging protocol is not defined\n";
+    $log_name  or die "Logging application name is not defined\n";
+
+    return;
+}
+
+sub create_logger {
+    $logger = SV::Logger->new(
+        'host'     => $log_host,
+        'port'     => $log_port,
+        'protocol' => $log_proto,
+        'app'      => $log_name,
+    );
+
+    return;
+}
+
+sub help {
+    print <<EOH;
+  cogere -- verb: to collect/gather, to compel/force
+
+  Usage: cogere --reason 'report hostname' --host-list hostname1,hostname2 'hostname'
+
+  Operations:
+    --host-list    Comma separated hostname list, command is executed on hosts
+                     if no other operations provided. Requires --reason
+    --rekey-hosts  Creates new SSH key, removes old SSH key and installs
+                     new SSH key on remote host. Requires --host-list
+    --add-host     Creates new host entry and keys remote host.
+                     Requires --hostname, --ipaddr. Optionally --username
+    --del-host     Removes host entry and remove key from remote host
+
+  Options:
+    -h|--help      Shows this output
+    -f|--config    Alternate configuration file
+    --hostname     Hostname to be provided to --add-host or --del-host
+    --ipaddr       IP address to be provided to --add-host
+    --username     User name to be provided to --add-host
+                     Optional, 'cogere' is used by default
+    --reason       Explanation of the command you are running
+
+  John Shields - SmartVault Corporation - 2015
+EOH
+}
+
+sub process_host_list {
+    my ($host_list, $timestamp) = @_;
+
+    $command        or die "Command was not provided.";
+    $args{'reason'} or die "Reason was not provided.";
+
+    my @hosts = split /,/, $host_list;
+    $log{'hosts'}   = \@hosts;
+    $log{'command'} = $command;
+    $log{'message'} = $args{'reason'};
+
+    for my $host (@hosts) {
+        get_host_line($host) or die "Invalid host '$host'\n";
+    }
+
+    $logger->write($json_o->encode(\%log));
+
+    for my $hostname (@hosts) {
+        my %params = get_params($hostname);
+        if ($timestamp) {
+            $params{'private'} = "$priv_keys/$hostname.$timestamp";
+            $params{'public'}  = "$pub_keys/$hostname.$timestamp";
+        }
+        my $ssh = Net::OpenSSH->new($params{'ipaddr'},
+            'user'              => $params{'username'},
+            'passphrase'        => $params{'password'},
+            'key_path'          => $params{'private'},
+            'default_stdout_fh' => $out_garb,
+            'default_stderr_fh' => $err_garb,
+            'default_stdin_fh'  => $in_garb,
+        );
+        $ssh->error and die "Failed to establish SSH connect: ${\$ssh->error}\n";
+        my ($out, $pid) = $ssh->pipe_out($command)
+          or die "Failed to open command pipe ${\$ssh->error}\n";
+        print while <$out>;
+        close $out;
+    }
+
+    return;
+}
+
+sub process_add_host {
+    my ($hostname, $ipaddr, $user) = @_;
+
+    $hostname or die "Failed to provide hostname\n";
+    $ipaddr   or die "Failed to provide IP address\n";
+    $user     = defined $user ? $user : $username;
+
+    get_host_line($hostname) and die "Hostname '$hostname' already defined\n";
+
+    $log{'message'} = "Adding host '$hostname'";
+
+    my ($password, $remoteid) = gen_key($hostname);
+    copy_key($hostname, $user, $ipaddr);
+
+    add_hosts_conf($hostname, $user, $ipaddr, $password, $remoteid);
+
+    return;
+}
+
+sub process_del_host {
+    my ($hostname) = @_;
+
+    get_host_line($hostname) or die "Hostname '$hostname' not defined\n";
+
+    $log{'message'} = "Deleting host '$hostname'";
+    $logger->write($json_o->encode(\%log));
+
+    my %params = get_params($hostname);
+
+    del_remote_key($hostname);
+    process_host_list($hostname);
+    del_hosts_conf($hostname);    
+
+    return;
+}
+
+sub process_rekey_host {
+    my ($host_list) = @_;
+
+    my @hosts = split /,/, $host_list;
+    for my $hostname (@hosts) {
+        get_host_line($hostname) or die "Hostname '$hostname' not defined\n";
+
+        $log{'message'} = "Rekeying host '$hostname'";
+        $logger->write($json_o->encode(\%log));
+
+        my %params = get_params($hostname);
+
+        my $timestamp = backup_key($hostname);
+        my ($password, $remoteid) = gen_key($hostname);
+        add_remote_key($hostname);
+        process_host_list($hostname, $timestamp);
+        del_remote_key($hostname);
+        process_host_list($hostname);
+        del_hosts_conf($hostname, $timestamp);
+        add_hosts_conf($hostname, $params{'username'}, $params{'ipaddr'}, $password, $remoteid);
+    }
+
+    return;
+}
+
+sub get_host_line {
+    my ($host) = @_;
+
+    my ($handle, $line, $host_line);
+    open $handle, '<', $hosts_conf or die "Failed to open '$hosts_conf': $!\n";
+    while ($line = <$handle>) {
+        if ($line =~ /^${host}::/) {
+            $host_line = $line;
+        }
+    }
+    close $handle;
+
+    return $host_line;
+}
+
+sub get_params {
+    my ($host) = @_;
+
+    chomp(my $host_line = get_host_line($host));
+    my @split = split /::/, $host_line;
+
+    my %params;
+    $params{'hostname'} = $split[0];
+    $params{'username'} = $split[1];
+    $params{'ipaddr'}   = $split[2];
+    $params{'password'} = $split[3];
+    $params{'remoteid'} = $split[4];
+    $params{'private'}  = "$priv_keys/$params{'hostname'}";
+    $params{'public'}   = "$pub_keys$params{'hostname'}.pub";
+
+    return %params;
+}
+
+sub gen_key {
+    my ($hostname) = @_;
+
+    if (-e "$priv_keys/$hostname" or -e "$pub_keys/$hostname.pub") {
+        die "Keys already exist\n";
+    }
+
+    open my $handle, "$genpass -c2 -S0 -l32|" or die "Failed to generate password: $!\n";
+    chomp(my @lines = <$handle>);
+    close $handle;
+
+    my ($password, $remoteid) = @lines;
+
+    `$ssh_keygen -q -b 4096 -t rsa -P "$password" -C "$remoteid" -f "$priv_keys/$hostname"`;
+    die "Failed to generate SSH keys for '$hostname': $!\n" if ($? > 0);
+
+    rename "$priv_keys/$hostname.pub", "$pub_keys/$hostname.pub"
+      or die "Failed to move public key: $!\n";
+
+    chmod 0600, "$priv_keys/$hostname", "$pub_keys/$hostname.pub"
+      or die "Failed to correct permissions on '$priv_keys/$hostname', '$pub_keys/$hostname.pub': $!\n";
+
+    return ($password, $remoteid);
+}
+
+sub copy_key {
+    my ($hostname, $user, $ipaddr) = @_;
+    
+    my $out = `$ssh_copy_id -i $pub_keys/$hostname.pub $user\@$ipaddr`;
+    die "Failed to copy SSH key to remote host '$user\@$ipaddr': $out\n" if ($? > 0);
+
+    return;
+}
+
+sub add_hosts_conf {
+    my ($hostname, $user, $ipaddr, $password, $remoteid) = @_;
+
+    open my $host_handle, '>>', $hosts_conf or die "Failed to open '$hosts_conf': $!\n";
+    printf $host_handle "%s::%s::%s::%s::%s\n", $hostname, $user, $ipaddr, $password, $remoteid;
+    close $host_handle;
+
+    return;
+}
+
+sub del_hosts_conf {
+    my ($hostname, $timestamp) = @_;
+    
+    {
+        local ($^I, @ARGV) = ("." . time . ".bak", $hosts_conf);
+        while (<>) {
+            print unless /^${hostname}::/;
+        }
+    }
+
+    $hostname = "$hostname.$timestamp" if $timestamp;
+
+    unlink "$priv_keys/$hostname"    or die "Failed to unlink '$priv_keys/$hostname': $!\n";
+    unlink "$pub_keys/$hostname.pub" or die "Failed to unlink '$pub_keys/$hostname.pub': $!\n";
+
+    return;
+}
+
+sub add_remote_key { 
+    my ($hostname) = @_;
+
+    my ($key, $handle);
+    open $handle, '<', "$pub_keys/$hostname.pub" or die "Failed to open '$pub_keys/$hostname.pub': $!\n";
+    chomp($key = <$handle>);
+    close $handle;
+
+    my %params = get_params($hostname);
+    $command = "echo '$key' >> /home/$params{'username'}/.ssh/authorized_keys";
+    $args{'reason'} = "Adding SSH key to $hostname";
+
+    return;
+}
+
+sub del_remote_key {
+    my ($hostname) = @_;
+
+    my %params = get_params($hostname);
+    $command = "sed -i '/$params{'remoteid'}\$/d' /home/$params{'username'}/.ssh/authorized_keys";
+    $args{'reason'} = "Removing SSH key from $hostname";
+
+    return;
+}
+
+sub backup_key {
+    my ($hostname) = @_;
+
+    my $timestamp = time;
+
+    rename "$priv_keys/$hostname", "$priv_keys/$hostname.$timestamp"
+      or die "Failed to backup '$priv_keys/$hostname': $!\n";
+    rename "$pub_keys/$hostname.pub", "$pub_keys/$hostname.$timestamp.pub"
+      or die "Failed to backup '$pub_keys/$hostname.pub': $!\n";
+
+    return $timestamp;
+}
+
