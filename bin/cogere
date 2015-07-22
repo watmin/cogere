@@ -191,7 +191,6 @@ sub process_host_list {
         get_host_line($host) or die "Invalid host '$host'\n";
     }
 
-    use Data::Dumper; print Data::Dumper::Dumper(\%log);
     $logger->write($json_o->encode(\%log));
 
     for my $hostname (@hosts) {
@@ -243,7 +242,6 @@ sub process_del_host {
     get_host_line($hostname) or die "Hostname '$hostname' not defined\n";
 
     $log{'message'} = "Deleting host '$hostname'";
-    use Data::Dumper; print Data::Dumper::Dumper(\%log);
     $logger->write($json_o->encode(\%log));
 
     my %params = get_params($hostname);
@@ -263,7 +261,6 @@ sub process_rekey_host {
         get_host_line($hostname) or die "Hostname '$hostname' not defined\n";
 
         $log{'message'} = "Rekeying host '$hostname'";
-        use Data::Dumper; print Data::Dumper::Dumper(\%log);
         $logger->write($json_o->encode(\%log));
 
         my %params = get_params($hostname);
@@ -339,7 +336,6 @@ sub gen_key {
 sub copy_key {
     my ($hostname, $user, $ipaddr) = @_;
     
-    print "DEBUG `$ssh_copy_id -i \"$keys_dir/$hostname.pub\" $user\@$ipaddr\n";
     my $out = `$ssh_copy_id -i "$keys_dir/$hostname.pub" $user\@$ipaddr`;
     die "Failed to copy SSH key to remote host '$user\@$ipaddr': $out\n" if ($? > 0);
 
@@ -368,9 +364,7 @@ sub del_hosts_conf {
 
     $hostname = "$hostname.$timestamp" if $timestamp;
 
-    print "DEBUG removing '$keys_dir/$hostname'\n";
     unlink "$keys_dir/$hostname"     or die "Failed to unlink '$keys_dir/$hostname': $!\n";
-    print "DEBUG removing '$keys_dir/$hostname.pub'\n";
     unlink "$keys_dir/$hostname.pub" or die "Failed to unlink '$keys_dir/$hostname.pub': $!\n";
 
     return;
