@@ -88,7 +88,7 @@ sub set_globals {
     open my $config_h, '<', $config or die "Failed to open '$config': $!\n";
     while (<$config_h>) {
         chomp;
-        next if /^#|^\s*$/;
+        next if /^\s*#|^\s*$/;
         my ($var, $val) = split /=/;
 
         switch ($var) {
