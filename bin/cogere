@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
-use lib '../lib';
+use lib '/opt/sv/lib';
 
 use SV::Logger;
 use Getopt::Long qw/:config no_ignore_case/;
@@ -9,12 +9,8 @@ use Net::OpenSSH;
 use Switch;
 use JSON;
 
-my ($login, $pass, $uid, $gid) = getpwuid($<);
 my $json_o = JSON->new->utf8;
-
-my %log = (
-    'user' => $login,
-);
+my %log = ( 'user' => $ENV{'SUDO_USER'} );
 
 open my $in_garb,  '<', '/dev/null';
 open my $out_garb, '>', '/dev/null';
