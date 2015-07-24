@@ -290,7 +290,7 @@ sub write_log {
 
         open my $handle, '>>', $log_file
           or die "Failed to open '$log_file': $!.\n";
-        printf $handle "%s\nTime: %s\nUser: %s\nHosts: %s\nReason: %s\nCommand:\n%s\n", '#' x 80, $timestamp,
+        printf $handle "%s\nTime:    %s\nUser:    %s\nHosts:   %s\nReason:  %s\nCommand:\n%s\n", '#' x 80, $timestamp,
           $log{'user'}, join( ',', @{ $log{'hosts'} } ), $log{'message'}, $log{'command'};
         close $handle;
 
@@ -569,6 +569,8 @@ sub process_rekey_host {
         get_host($hostname) or die "Hostname '$hostname' not defined,\n";
 
         $log{'message'} = "Rekeying host '$hostname'";
+        $log{'hosts'}   = [$hostname];
+        $log{'command'} = 'rekeying, commands are up next';
         write_log(%log);
 
         my %params = get_params($hostname);
@@ -737,3 +739,4 @@ sub process_all {
 
     return;
 }
+
