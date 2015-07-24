@@ -8,6 +8,7 @@ use Getopt::Long qw/:config no_ignore_case/;
 use Net::OpenSSH;
 use Switch;
 use JSON;
+use YAML::Tiny;
 
 my $json_o = JSON->new->utf8;
 my %log = ( 'user' => $ENV{'SUDO_USER'} );
@@ -111,6 +112,11 @@ sub check_globals {
     die "Base directory '$base_dir' not found\n" if !-d $base_dir;
 
     $hosts_conf or die "Hosts configuration not defined\n";
+    if (!-f $hosts_conf) {
+        open my $handle, '>', $hosts_conf
+          or die "Failed to create empty hosts config '$hosts_conf'\n";
+        close $handle;
+    }
     die "Hosts configuration '$hosts_conf' not found\n" if !-f $hosts_conf;
 
     $keys_dir or die "Private keys directory not defined\n";
@@ -184,7 +190,7 @@ sub process_host_list {
     $log{'message'} = $args{'reason'};
 
     for my $host (@hosts) {
-        get_host_line($host) or die "Invalid host '$host'\n";
+        get_host($host) or die "Invalid host '$host'\n";
     }
 
     $logger->write($json_o->encode(\%log));
@@ -220,7 +226,7 @@ sub process_add_host {
     $ipaddr   or die "Failed to provide IP address\n";
     $user     = defined $user ? $user : $username;
 
-    get_host_line($hostname) and die "Hostname '$hostname' already defined\n";
+    get_host($hostname) and die "Hostname '$hostname' already defined\n";
 
     $log{'message'} = "Adding host '$hostname'";
 
@@ -235,7 +241,7 @@ sub process_add_host {
 sub process_del_host {
     my ($hostname) = @_;
 
-    get_host_line($hostname) or die "Hostname '$hostname' not defined\n";
+    get_host($hostname) or die "Hostname '$hostname' not defined\n";
 
     $log{'message'} = "Deleting host '$hostname'";
     $logger->write($json_o->encode(\%log));
@@ -254,7 +260,7 @@ sub process_rekey_host {
 
     my @hosts = split /,/, $host_list;
     for my $hostname (@hosts) {
-        get_host_line($hostname) or die "Hostname '$hostname' not defined\n";
+        get_host($hostname) or die "Hostname '$hostname' not defined\n";
 
         $log{'message'} = "Rekeying host '$hostname'";
         $logger->write($json_o->encode(\%log));
@@ -274,35 +280,30 @@ sub process_rekey_host {
     return;
 }
 
-sub get_host_line {
-    my ($host) = @_;
+sub get_host {
+    my ($hostname) = @_;
 
-    my ($handle, $line, $host_line);
-    open $handle, '<', $hosts_conf or die "Failed to open '$hosts_conf': $!\n";
-    while ($line = <$handle>) {
-        if ($line =~ /^${host}::/) {
-            $host_line = $line;
-        }
-    }
-    close $handle;
+    my $host;
+    my $config = YAML::Tiny->read($hosts_conf) or die "Failed to parse '$hosts_conf': $!\n";
+    $host = $config->[0]{'hosts'}{$hostname};
 
-    return $host_line;
+    return $host;
 }
 
 sub get_params {
     my ($host) = @_;
 
-    chomp(my $host_line = get_host_line($host));
-    my @split = split /::/, $host_line;
+    my $host_o = get_host($host);
 
-    my %params;
-    $params{'hostname'} = $split[0];
-    $params{'username'} = $split[1];
-    $params{'ipaddr'}   = $split[2];
-    $params{'password'} = $split[3];
-    $params{'remoteid'} = $split[4];
-    $params{'private'}  = "$keys_dir/$params{'hostname'}";
-    $params{'public'}   = "$keys_dir/$params{'hostname'}.pub";
+    my %params = (
+        'hostname' => $host,
+        'username' => $host_o->{'username'},
+        'ipaddr'   => $host_o->{'ipaddr'},
+        'password' => $host_o->{'password'},
+        'remoteid' => $host_o->{'remoteid'},
+        'private'  => "$keys_dir/$host",
+        'public'   => "$keys_dir/$host.pub",
+    );
 
     return %params;
 }
@@ -332,7 +333,7 @@ sub gen_key {
 sub copy_key {
     my ($hostname, $user, $ipaddr) = @_;
     
-    my $out = `$ssh_copy_id -i "$keys_dir/$hostname.pub" $user\@$ipaddr`;
+    my $out = `$ssh_copy_id -o PubkeyAuthentication=no -i "$keys_dir/$hostname" $user\@$ipaddr`;
     die "Failed to copy SSH key to remote host '$user\@$ipaddr': $out\n" if ($? > 0);
 
     return;
@@ -341,22 +342,25 @@ sub copy_key {
 sub add_hosts_conf {
     my ($hostname, $user, $ipaddr, $password, $remoteid) = @_;
 
-    open my $host_handle, '>>', $hosts_conf or die "Failed to open '$hosts_conf': $!\n";
-    printf $host_handle "%s::%s::%s::%s::%s\n", $hostname, $user, $ipaddr, $password, $remoteid;
-    close $host_handle;
+    my $config = YAML::Tiny->read($hosts_conf);
+    my $host = {
+        'username' => $user,
+        'ipaddr'   => $ipaddr,
+        'password' => $password,
+        'remoteid' => $remoteid,
+    };
+    $config->[0]{'hosts'}{$hostname} = $host;
+    $config->write($hosts_conf);
 
     return;
 }
 
 sub del_hosts_conf {
     my ($hostname, $timestamp) = @_;
-    
-    {
-        local ($^I, @ARGV) = ('', $hosts_conf);
-        while (<>) {
-            print unless /^${hostname}::/;
-        }
-    }
+
+    my $config = YAML::Tiny->read($hosts_conf);
+    delete $config->[0]{'hosts'}{$hostname};
+    $config->write($hosts_conf);
 
     $hostname = "$hostname.$timestamp" if $timestamp;
 
