@@ -1,8 +1,36 @@
 #!/usr/bin/perl
+#: Author  : John Shields <john.shields@smartvault.com>
+#: Name    : cogere.pl
+#: Version : 1.0.0
+#: Path    : /opt/sv/bin/cogere
+#: Params  : see --help|-h
+#: Desc    : Broadcasts commands to select hosts over SSH
+#: License :
+# Copyright (c) 2015 SmartVault, Inc.
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
 use strict;
 use warnings;
-use lib '/opt/sv/lib';
 
+use FindBin;
+use lib "$FindBin::Bin/../lib";
 use SV::Logger;
 use Getopt::Long qw/:config no_ignore_case/;
 use Net::OpenSSH;
@@ -10,6 +38,7 @@ use Switch;
 use JSON;
 use YAML::Tiny;
 use List::MoreUtils qw/uniq/;
+use POSIX qw/strftime/;
 
 my $json_o = JSON->new->utf8;
 my %log = ( 'user' => $ENV{'SUDO_USER'} );
@@ -21,106 +50,106 @@ open my $err_garb, '>', '/dev/null';
 my $def_base_dir = '/opt/sv/cogere';
 my $base_dir     = $def_base_dir;
 my $def_config   = "$base_dir/conf/cogere.conf";
-my ($hosts_conf, $keys_dir, $genpass, $ssh_keygen,
-    $ssh_copy_id, $username, $logger, $log_host,
-    $log_port, $log_proto, $log_name);
+my (
+    $hosts_conf, $keys_dir, $genpass,  $ssh_keygen, $ssh_copy_id, $username, $log_type,
+    $logstash,   $log_file, $log_host, $log_port,   $log_proto,   $log_name
+);
 
-if (!@ARGV) {
+if ( !@ARGV ) {
     help();
     exit;
 }
 
 my %args;
 GetOptions(
-    'h|help'        => \$args{'help'},
-    'f|config'      => \$args{'config'},
-    'l|host-list=s' => \$args{'host-list'},
-    'r|reason=s'    => \$args{'reason'},
-    'rekey-hosts'   => \$args{'rekey-hosts'},
-    'add-host'      => \$args{'add-host'},
-    'del-host'      => \$args{'del-host'},
-    'hostname=s'    => \$args{'hostname'},
-    'ipaddr=s'      => \$args{'ipaddr'},
-    'username=s'    => \$args{'username'},
-    'g|group=s'     => \$args{'group'},
-    'add-group'     => \$args{'add-group'},
-    'del-group'     => \$args{'del-group'},
-    'join-group'    => \$args{'join-group'},
-    'leave-group'   => \$args{'leave-group'},
-    'lh|list-hosts'    => \$args{'list-hosts'},
-    'lg|list-groups'   => \$args{'list-groups'},
-    'lm|list-members'  => \$args{'list-members'},
-    'a|all'         => \$args{'all'},
+    'h|help'          => \$args{'help'},
+    'f|config'        => \$args{'config'},
+    'l|host-list=s'   => \$args{'host-list'},
+    'r|reason=s'      => \$args{'reason'},
+    'rekey-hosts'     => \$args{'rekey-hosts'},
+    'add-host'        => \$args{'add-host'},
+    'del-host'        => \$args{'del-host'},
+    'hostname=s'      => \$args{'hostname'},
+    'ipaddr=s'        => \$args{'ipaddr'},
+    'username=s'      => \$args{'username'},
+    'g|group=s'       => \$args{'group'},
+    'add-group'       => \$args{'add-group'},
+    'del-group'       => \$args{'del-group'},
+    'join-group'      => \$args{'join-group'},
+    'leave-group'     => \$args{'leave-group'},
+    'lh|list-hosts'   => \$args{'list-hosts'},
+    'lg|list-groups'  => \$args{'list-groups'},
+    'lm|list-members' => \$args{'list-members'},
+    'a|all'           => \$args{'all'},
 ) or die "Invalid arguments. See $0 -h\n";
 
 my $command = $ARGV[0];
 
-if ($args{'config'}) {
-    set_globals($args{'config'});
+if ( $args{'config'} ) {
+    set_globals( $args{'config'} );
 }
 else {
     set_globals($def_config);
 }
 
 check_globals();
-create_logger();
 
-if ($args{'help'}) {
+if ( $args{'help'} ) {
     help();
     exit;
 }
-elsif ($args{'list-hosts'}) {
+elsif ( $args{'list-hosts'} ) {
     process_list_hosts();
     exit;
 }
-elsif ($args{'list-groups'}) {
+elsif ( $args{'list-groups'} ) {
     process_list_groups();
     exit;
 }
-elsif ($args{'list-members'}) {
-    process_list_members($args{'group'});
+elsif ( $args{'list-members'} ) {
+    process_list_members( $args{'group'} );
     exit;
 }
 
-if ($args{'del-host'}) {
-    process_del_host($args{'hostname'});
+if ( $args{'del-host'} ) {
+    process_del_host( $args{'hostname'} );
     exit;
 }
-elsif ($args{'add-host'}) {
-    process_add_host($args{'hostname'}, $args{'ipaddr'}, $args{'username'});
+elsif ( $args{'add-host'} ) {
+    process_add_host( $args{'hostname'}, $args{'ipaddr'}, $args{'username'} );
     exit;
 }
-elsif ($args{'add-group'}) {
-    process_add_group($args{'group'}, $args{'host-list'});
+elsif ( $args{'add-group'} ) {
+    process_add_group( $args{'group'}, $args{'host-list'} );
     exit;
 }
-elsif ($args{'del-group'}) {
-    process_del_group($args{'group'});
+elsif ( $args{'del-group'} ) {
+    process_del_group( $args{'group'} );
     exit;
 }
-elsif ($args{'join-group'}) {
-    process_join_group($args{'group'}, $args{'host-list'});
+elsif ( $args{'join-group'} ) {
+    process_join_group( $args{'group'}, $args{'host-list'} );
     exit;
 }
-elsif ($args{'leave-group'}) {
-    process_leave_group($args{'group'}, $args{'host-list'});
+elsif ( $args{'leave-group'} ) {
+    process_leave_group( $args{'group'}, $args{'host-list'} );
     exit;
 }
 
-if ($args{'all'}) {
+if ( $args{'all'} ) {
     process_all();
-}   
-elsif ($args{'group'}) {
-    process_group($args{'group'})
+}
+elsif ( $args{'group'} ) {
+    process_group( $args{'group'} );
 }
 
-if ($args{'rekey-hosts'}) {
-    process_rekey_host($args{'host-list'});
+if ( $args{'rekey-hosts'} ) {
+    process_rekey_host( $args{'host-list'} );
     exit;
 }
 
-if ($args{'host-list'}) {
-    process_host_list($args{'host-list'});
+if ( $args{'host-list'} ) {
+    process_host_list( $args{'host-list'} );
     exit;
 }
 else {
@@ -181,7 +210,7 @@ sub set_globals {
     while (<$config_h>) {
         chomp;
         next if /^\s*#|^\s*$/;
-        my ($var, $val) = split /=/;
+        my ( $var, $val ) = split /=/;
 
         switch ($var) {
             case /^base_dir$/    { $base_dir    = $val }
@@ -191,14 +220,16 @@ sub set_globals {
             case /^ssh_keygen$/  { $ssh_keygen  = $val }
             case /^ssh_copy_id$/ { $ssh_copy_id = $val }
             case /^username$/    { $username    = $val }
+            case /^log_type$/    { $log_type    = $val }
             case /^log_host$/    { $log_host    = $val }
             case /^log_port$/    { $log_port    = $val }
             case /^log_proto$/   { $log_proto   = $val }
             case /^log_name$/    { $log_name    = $val }
+            case /^log_file$/    { $log_file    = $val }
             else                 { warn "'$var' not recognized configuration parameter.\n" }
         }
     }
-    
+
     return;
 }
 
@@ -207,7 +238,7 @@ sub check_globals {
     die "Base directory '$base_dir' not found.\n" if !-d $base_dir;
 
     $hosts_conf or die "Hosts configuration not defined.\n";
-    if (!-f $hosts_conf) {
+    if ( !-f $hosts_conf ) {
         open my $handle, '>', $hosts_conf
           or die "Failed to create empty hosts config '$hosts_conf'.\n";
         close $handle;
@@ -225,22 +256,55 @@ sub check_globals {
     $ssh_copy_id or die "ssh_copy_id is not defined.\n";
     die "ssh-copy-id '$ssh_copy_id' is not executable.\n" if !-x $ssh_copy_id;
 
-    $username  or die "Username is not defined.\n";
-    $log_host  or die "Logging host is not defined.\n";
-    $log_port  or die "Logging port is not defined.\n";
-    $log_proto or die "Logging protocol is not defined.\n";
-    $log_name  or die "Logging application name is not defined.\n";
+    $username or die "Username is not defined.\n";
+
+    $log_type or die "Logging type(s) not defined\n";
+    my @log_types = split /,/, $log_type;
+    for my $log (@log_types) {
+        switch ($log) {
+            case /^logstash$/ {
+                $log_host  or die "Logging host is not defined.\n";
+                $log_port  or die "Logging port is not defined.\n";
+                $log_proto or die "Logging protocol is not defined.\n";
+                $log_name  or die "Logging application name is not defined.\n";
+                $logstash = 1;
+            }
+            case /^file$/ {
+                $log_file or die "Log file is not defined.\n";
+                die "Log file '$log_file' not found.\n" if !-f $log_file;
+            }
+            else {
+                die "Invalied log type '$log'.\n";
+            }
+        }
+    }
 
     return;
 }
 
-sub create_logger {
-    $logger = SV::Logger->new(
-        'host'     => $log_host,
-        'port'     => $log_port,
-        'protocol' => $log_proto,
-        'app'      => $log_name,
-    );
+sub write_log {
+    my %log = @_;
+
+    if ($log_file) {
+        my $timestamp = strftime "%Y-%m-%d %H:%M:%S", localtime;
+
+        open my $handle, '>>', $log_file
+          or die "Failed to open '$log_file': $!.\n";
+        printf $handle "%s\nTime: %s\nUser: %s\nHosts: %s\nReason: %s\nCommand:\n%s\n", '#' x 80, $timestamp,
+          $log{'user'}, join( ',', @{ $log{'hosts'} } ), $log{'message'}, $log{'command'};
+        close $handle;
+
+    }
+
+    if ($logstash) {
+        my $logger = SV::Logger->new(
+            'host'     => $log_host,
+            'port'     => $log_port,
+            'protocol' => $log_proto,
+            'app'      => $log_name,
+        );
+        $logger->write( $json_o->encode( \%log ) );
+    }
 
     return;
 }
@@ -258,7 +322,7 @@ sub get_config {
 }
 
 sub validate_hosts {
-    my (@hosts) = @_;
+    my @hosts = @_;
 
     for my $host (@hosts) {
         get_host($host) or die "Invalid host '$host'.\n";
@@ -268,7 +332,7 @@ sub validate_hosts {
 }
 
 sub validate_groups {
-    my (@groups) = @_;
+    my @groups = @_;
 
     for my $group (@groups) {
         get_members($group) or die "Invalid group '$group'.\n";
@@ -290,7 +354,7 @@ sub get_host {
 sub get_members {
     my ($group) = @_;
 
-    my $config = get_config();
+    my $config  = get_config();
     my $mem_ref = $config->{'groups'}{$group};
     $mem_ref or die "Group '$group' not found.\n";
 
@@ -320,36 +384,36 @@ sub get_params {
 sub gen_key {
     my ($hostname) = @_;
 
-    if (-e "$keys_dir/$hostname" or -e "$keys_dir/$hostname.pub") {
+    if ( -e "$keys_dir/$hostname" or -e "$keys_dir/$hostname.pub" ) {
         die "Keys already exist.\n";
     }
 
     open my $handle, "$genpass -c2 -S0 -l32|" or die "Failed to generate password: $!.\n";
-    chomp(my @lines = <$handle>);
+    chomp( my @lines = <$handle> );
     close $handle;
 
-    my ($password, $remoteid) = @lines;
+    my ( $password, $remoteid ) = @lines;
 
     `$ssh_keygen -q -b 4096 -t rsa -P "$password" -C "$remoteid" -f "$keys_dir/$hostname"`;
-    die "Failed to generate SSH keys for '$hostname': $!.\n" if ($? > 0);
+    die "Failed to generate SSH keys for '$hostname': $!.\n" if ( $? > 0 );
 
     chmod 0600, "$keys_dir/$hostname", "$keys_dir/$hostname.pub"
       or die "Failed to correct permissions on '$keys_dir/$hostname', '$keys_dir/$hostname.pub': $!.\n";
 
-    return ($password, $remoteid);
+    return ( $password, $remoteid );
 }
 
 sub copy_key {
-    my ($hostname, $user, $ipaddr) = @_;
-    
+    my ( $hostname, $user, $ipaddr ) = @_;
+
     my $out = `$ssh_copy_id -i "$keys_dir/$hostname" $user\@$ipaddr`;
-    die "Failed to copy SSH key to remote host '$user\@$ipaddr': $out.\n" if ($? > 0);
+    die "Failed to copy SSH key to remote host '$user\@$ipaddr': $out.\n" if ( $? > 0 );
 
     return;
 }
 
 sub add_hosts_conf {
-    my ($hostname, $user, $ipaddr, $password, $remoteid) = @_;
+    my ( $hostname, $user, $ipaddr, $password, $remoteid ) = @_;
 
     my $yaml = get_yaml();
     my $host = {
@@ -365,7 +429,7 @@ sub add_hosts_conf {
 }
 
 sub del_hosts_conf {
-    my ($hostname, $timestamp) = @_;
+    my ( $hostname, $timestamp ) = @_;
 
     my $yaml = get_yaml();
     delete $yaml->[0]{'hosts'}{$hostname};
@@ -379,12 +443,12 @@ sub del_hosts_conf {
     return;
 }
 
-sub add_remote_key { 
+sub add_remote_key {
     my ($hostname) = @_;
 
-    my ($key, $handle);
+    my ( $key, $handle );
     open $handle, '<', "$keys_dir/$hostname.pub" or die "Failed to open '$keys_dir/$hostname.pub': $!.\n";
-    chomp($key = <$handle>);
+    chomp( $key = <$handle> );
     close $handle;
 
     my %params = get_params($hostname);
@@ -395,7 +459,7 @@ sub add_remote_key {
 }
 
 sub del_remote_key {
-    my ($hostname, $remoteid) = @_;
+    my ( $hostname, $remoteid ) = @_;
 
     my %params = get_params($hostname);
     $params{'remoteid'} = $remoteid if $remoteid;
@@ -419,7 +483,7 @@ sub backup_key {
 }
 
 sub process_host_list {
-    my ($host_list, $timestamp) = @_;
+    my ( $host_list, $timestamp ) = @_;
 
     $host_list      or die "Host list was not provided.\n";
     $command        or die "Command was not provided.\n";
@@ -433,7 +497,7 @@ sub process_host_list {
     $log{'command'} = $command;
     $log{'message'} = $args{'reason'};
 
-    $logger->write($json_o->encode(\%log));
+    write_log(%log);
 
     for my $hostname (@hosts) {
         my %params = get_params($hostname);
@@ -441,7 +505,8 @@ sub process_host_list {
             $params{'private'} = "$keys_dir/$hostname.$timestamp";
             $params{'public'}  = "$keys_dir/$hostname.$timestamp.pub";
         }
-        my $ssh = Net::OpenSSH->new($params{'ipaddr'},
+        my $ssh = Net::OpenSSH->new(
+            $params{'ipaddr'},
             'user'              => $params{'username'},
             'passphrase'        => $params{'password'},
             'key_path'          => $params{'private'},
@@ -450,7 +515,7 @@ sub process_host_list {
             'default_stdin_fh'  => $in_garb,
         );
         $ssh->error and die "Failed to establish SSH connect: ${\$ssh->error}.\n";
-        my ($out, $pid) = $ssh->pipe_out($command)
+        my ( $out, $pid ) = $ssh->pipe_out($command)
           or die "Failed to open command pipe ${\$ssh->error}.\n";
         print while <$out>;
         close $out;
@@ -460,20 +525,20 @@ sub process_host_list {
 }
 
 sub process_add_host {
-    my ($hostname, $ipaddr, $user) = @_;
+    my ( $hostname, $ipaddr, $user ) = @_;
 
     $hostname or die "Failed to provide hostname.\n";
     $ipaddr   or die "Failed to provide IP address.\n";
-    $user     = defined $user ? $user : $username;
+    $user = defined $user ? $user : $username;
 
     get_host($hostname) and die "Hostname '$hostname' already defined.\n";
 
     $log{'message'} = "Adding host '$hostname'";
 
-    my ($password, $remoteid) = gen_key($hostname);
-    copy_key($hostname, $user, $ipaddr);
+    my ( $password, $remoteid ) = gen_key($hostname);
+    copy_key( $hostname, $user, $ipaddr );
 
-    add_hosts_conf($hostname, $user, $ipaddr, $password, $remoteid);
+    add_hosts_conf( $hostname, $user, $ipaddr, $password, $remoteid );
 
     return;
 }
@@ -484,13 +549,13 @@ sub process_del_host {
     get_host($hostname) or die "Hostname '$hostname' not defined.\n";
 
     $log{'message'} = "Deleting host '$hostname'";
-    $logger->write($json_o->encode(\%log));
+    write_log(%log);
 
     my %params = get_params($hostname);
 
     del_remote_key($hostname);
     process_host_list($hostname);
-    del_hosts_conf($hostname);    
+    del_hosts_conf($hostname);
 
     return;
 }
@@ -504,17 +569,17 @@ sub process_rekey_host {
         get_host($hostname) or die "Hostname '$hostname' not defined,\n";
 
         $log{'message'} = "Rekeying host '$hostname'";
-        $logger->write($json_o->encode(\%log));
+        write_log(%log);
 
         my %params = get_params($hostname);
 
         my $timestamp = backup_key($hostname);
-        my ($password, $remoteid) = gen_key($hostname);
+        my ( $password, $remoteid ) = gen_key($hostname);
         add_remote_key($hostname);
-        process_host_list($hostname, $timestamp);
-        del_hosts_conf($hostname, $timestamp);
-        add_hosts_conf($hostname, $params{'username'}, $params{'ipaddr'}, $password, $remoteid);
-        del_remote_key($hostname, $params{'remoteid'});
+        process_host_list( $hostname, $timestamp );
+        del_hosts_conf( $hostname, $timestamp );
+        add_hosts_conf( $hostname, $params{'username'}, $params{'ipaddr'}, $password, $remoteid );
+        del_remote_key( $hostname, $params{'remoteid'} );
         process_host_list($hostname);
     }
 
@@ -525,7 +590,7 @@ sub process_list_hosts {
     my $config = get_config();
 
     my $hosts = $config->{'hosts'};
-    for my $host (sort keys %{$hosts}) {
+    for my $host ( sort keys %{$hosts} ) {
         print "$host\n";
     }
 
@@ -536,7 +601,7 @@ sub process_list_groups {
     my $config = get_config();
 
     my $groups = $config->{'groups'};
-    for my $group (sort keys %{$groups}) {
+    for my $group ( sort keys %{$groups} ) {
         process_list_members($group);
     }
 
@@ -549,24 +614,24 @@ sub process_list_members {
     $group or die "Group was not provided.\n";
 
     my $config = get_config();
-    my $hosts = $config->{'groups'}{$group};
-    
+    my $hosts  = $config->{'groups'}{$group};
+
     $hosts or die "Group was not found\n";
 
-    printf "%s - %s\n", $group, join ',',@{$hosts};
+    printf "%s - %s\n", $group, join ',', @{$hosts};
 
     return;
 }
 
 sub process_add_group {
-    my ($group, $host_list) = @_;
+    my ( $group, $host_list ) = @_;
 
-    $group or die "Group was not provided.\n";
+    $group     or die "Group was not provided.\n";
     $host_list or die "Failed to provided host list.\n";
 
     my $yaml = get_yaml();
 
-    if (exists $yaml->[0]{'groups'}{$group}) {
+    if ( exists $yaml->[0]{'groups'}{$group} ) {
         die "Group '$group' exists, cannot recreate. Join or delete '$group'.\n";
     }
 
@@ -586,7 +651,7 @@ sub process_del_group {
     $group or die "Group was not provided.\n";
 
     my $yaml = get_yaml();
-    if (!exists $yaml->[0]{'groups'}{$group}) {
+    if ( !exists $yaml->[0]{'groups'}{$group} ) {
         die "Group '$group' does not exist, cannot delete.\n";
     }
 
@@ -597,9 +662,9 @@ sub process_del_group {
 }
 
 sub process_join_group {
-    my ($group, $host_list) = @_;
+    my ( $group, $host_list ) = @_;
 
-    $group or die "Group was not provided.\n";
+    $group     or die "Group was not provided.\n";
     $host_list or die "Host list was not provided.\n";
     my @dirty_hosts = split /,/, $host_list;
     my @hosts = uniq @dirty_hosts;
@@ -618,9 +683,9 @@ sub process_join_group {
 }
 
 sub process_leave_group {
-    my ($group, $host_list) = @_;
+    my ( $group, $host_list ) = @_;
 
-    $group or die "Group was not provided.\n";
+    $group     or die "Group was not provided.\n";
     $host_list or die "Host list was not provided.\n";
     my @dirty_hosts = split /,/, $host_list;
     my @hosts = uniq @dirty_hosts;
@@ -629,7 +694,7 @@ sub process_leave_group {
     validate_hosts(@hosts);
 
     my @members = get_members($group);
-    
+
     for my $host (@hosts) {
         @members = grep { $_ ne $host } @members;
     }
@@ -648,8 +713,6 @@ sub process_group {
     my @dirty_groups = split /,/, $group_list;
     my @groups = uniq @dirty_groups;
 
-    #validate_groups(@groups);
-
     my @hosts;
     for my $group (@groups) {
         my @members = get_members($group);
@@ -666,7 +729,7 @@ sub process_all {
 
     my $hosts_ref = $config->{'hosts'};
     my @hosts;
-    for my $host (sort keys %{$hosts_ref}) {
+    for my $host ( sort keys %{$hosts_ref} ) {
         push @hosts, $host;
     }
 
