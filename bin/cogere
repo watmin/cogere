@@ -47,9 +47,9 @@ GetOptions(
     'del-group'     => \$args{'del-group'},
     'join-group'    => \$args{'join-group'},
     'leave-group'   => \$args{'leave-group'},
-    'list-hosts'    => \$args{'list-hosts'},
-    'list-groups'   => \$args{'list-groups'},
-    'list-members'  => \$args{'list-members'},
+    'lh|list-hosts'    => \$args{'list-hosts'},
+    'lg|list-groups'   => \$args{'list-groups'},
+    'lm|list-members'  => \$args{'list-members'},
     'a|all'         => \$args{'all'},
 ) or die "Invalid arguments. See $0 -h\n";
 
@@ -64,13 +64,6 @@ else {
 
 check_globals();
 create_logger();
-
-if ($args{'all'}) {
-    process_all();
-}
-elsif ($args{'group'}) {
-    process_group($args{'group'})
-}
 
 if ($args{'help'}) {
     help();
@@ -88,7 +81,8 @@ elsif ($args{'list-members'}) {
     process_list_members($args{'group'});
     exit;
 }
-elsif ($args{'del-host'}) {
+
+if ($args{'del-host'}) {
     process_del_host($args{'hostname'});
     exit;
 }
@@ -116,7 +110,15 @@ elsif ($args{'leave-group'}) {
     process_leave_group($args{'group'}, $args{'host-list'});
     exit;
 }
-elsif ($args{'host-list'}) {
+
+if ($args{'all'}) {
+    process_all();
+}   
+elsif ($args{'group'}) {
+    process_group($args{'group'})
+}
+
+if ($args{'host-list'}) {
     process_host_list($args{'host-list'});
     exit;
 }
@@ -131,41 +133,41 @@ cogere -- verb: to collect/gather, to compel/force
 Usage: cogere --reason 'report hostname' --host-list host1,host2 'hostname'
 
 Operations:
-  -l|--host-list     Comma separated hostname list, command is executed on hosts
-                      if no other operations provided.
-                      Requires --reason
-  --add-host        Creates new host entry and keys remote host.
-                      Requires --hostname, --ipaddr. Optionally --username
-  --del-host        Removes host entry and remove key from remote host
-                      Requires --hostname
-  --rekey-hosts     Creates new SSH key, removes old SSH key and installs
-                      new SSH key on remote host.
-                      Requires --host-list
-  -g|--group        Comma separated group list, command is executed on groups
-                      if no other operations provided.
-                      Requires --reason
-  --add-group       Creates new group of hosts.
-                      Requires --group, --host-list
-  --del-group       Delete group.
-                      Requires --group
-  --join-group      Adds hosts to an existing group.
-                      Requires --group, --host-list
-  --leave-group     Remove hosts from an existing group.
-                      Requires --group, --host-list
+  -l|--host-list  Comma separated hostname list, command is executed on hosts
+                    if no other operations provided.
+                    Requires --reason
+  --add-host      Creates new host entry and keys remote host.
+                    Requires --hostname, --ipaddr. Optionally --username
+  --del-host      Removes host entry and remove key from remote host
+                    Requires --hostname
+  --rekey-hosts   Creates new SSH key, removes old SSH key and installs
+                    new SSH key on remote host.
+                    Requires --host-list
+  -g|--group      Comma separated group list, command is executed on groups
+                    if no other operations provided.
+                    Requires --reason
+  --add-group     Creates new group of hosts.
+                    Requires --group, --host-list
+  --del-group     Delete group.
+                    Requires --group
+  --join-group    Adds hosts to an existing group.
+                    Requires --group, --host-list
+  --leave-group   Remove hosts from an existing group.
+                    Requires --group, --host-list
 
 Options:
-  -h|--help         Shows this output
-  -f|--config       Alternate configuration file
-  --hostname        Hostname to be provided to --add-host or --del-host
-  --ipaddr          IP address to be provided to --add-host
-  --username        User name to be provided to --add-host
-                      Optional, 'cogere' is used by default
-  -r|--reason       Explanation of the command you are running
-  -a|--all          Builds a group of all defined hosts.
-  --list-hosts      Displays all defined hosts
-  --list-groups     Displays all defined groups
-  --list-members    Displays all hosts within group
-                      Requires --group
+  -h|--help           Shows this output
+  -f|--config         Alternate configuration file
+  --hostname          Hostname to be provided to --add-host or --del-host
+  --ipaddr            IP address to be provided to --add-host
+  --username          User name to be provided to --add-host
+                        Optional, 'cogere' is used by default
+  -r|--reason         Explanation of the command you are running
+  -a|--all            Builds a group of all defined hosts.
+  --lh|--list-hosts   Displays all defined hosts
+  --lg|--list-groups  Displays all defined groups
+  --lm|--list-members Displays all hosts within group
+                        Requires --group
 
 John Shields - SmartVault Corporation - 2015
 EOH
@@ -645,7 +647,7 @@ sub process_group {
     my @dirty_groups = split /,/, $group_list;
     my @groups = uniq @dirty_groups;
 
-    validate_groups(@groups);
+    #validate_groups(@groups);
 
     my @hosts;
     for my $group (@groups) {
