@@ -333,7 +333,7 @@ sub gen_key {
 sub copy_key {
     my ($hostname, $user, $ipaddr) = @_;
     
-    my $out = `$ssh_copy_id -o PubkeyAuthentication=no -i "$keys_dir/$hostname" $user\@$ipaddr`;
+    my $out = `$ssh_copy_id -i "$keys_dir/$hostname" $user\@$ipaddr`;
     die "Failed to copy SSH key to remote host '$user\@$ipaddr': $out\n" if ($? > 0);
 
     return;
