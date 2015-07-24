@@ -90,10 +90,6 @@ elsif ($args{'add-host'}) {
     process_add_host($args{'hostname'}, $args{'ipaddr'}, $args{'username'});
     exit;
 }
-elsif ($args{'rekey-hosts'}) {
-    process_rekey_host($args{'host-list'});
-    exit;
-}
 elsif ($args{'add-group'}) {
     process_add_group($args{'group'}, $args{'host-list'});
     exit;
@@ -116,6 +112,11 @@ if ($args{'all'}) {
 }   
 elsif ($args{'group'}) {
     process_group($args{'group'})
+}
+
+if ($args{'rekey-hosts'}) {
+    process_rekey_host($args{'host-list'});
+    exit;
 }
 
 if ($args{'host-list'}) {
