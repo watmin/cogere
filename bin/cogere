@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.0.0
+#: Version : 1.0.1
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help|-h
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -406,6 +406,11 @@ sub gen_key {
 sub copy_key {
     my ( $hostname, $user, $ipaddr ) = @_;
 
+    $log{'message'} = "Adding host '$hostname'";
+    $log{'hosts'}   = [$hostname];
+    $log{'command'} = "[local] $ssh_copy_id -i \"$keys_dir/$hostname\" $user\@$ipaddr";
+    write_log(%log);
+
     my $out = `$ssh_copy_id -i "$keys_dir/$hostname" $user\@$ipaddr`;
     die "Failed to copy SSH key to remote host '$user\@$ipaddr': $out.\n" if ( $? > 0 );
 
@@ -482,6 +487,20 @@ sub backup_key {
     return $timestamp;
 }
 
+sub leave_all_groups {
+    my ($host) = @_;
+
+    my $config = get_config();
+    for my $group ( keys %{ $config->{'groups'} } ) {
+        my @members = get_members($group);
+        if ( grep { $_ eq $host } @members ) {
+            process_leave_group( $group, $host );
+        }
+    }
+
+    return;
+}
+
 sub process_host_list {
     my ( $host_list, $timestamp ) = @_;
 
@@ -495,7 +514,7 @@ sub process_host_list {
 
     $log{'hosts'}   = \@hosts;
     $log{'command'} = $command;
-    $log{'message'} = $args{'reason'};
+    $log{'message'} = $args{'reason'} unless defined $log{'message'};
 
     write_log(%log);
 
@@ -549,10 +568,10 @@ sub process_del_host {
     get_host($hostname) or die "Hostname '$hostname' not defined.\n";
 
     $log{'message'} = "Deleting host '$hostname'";
-    write_log(%log);
 
     my %params = get_params($hostname);
 
+    leave_all_groups($hostname);
     del_remote_key($hostname);
     process_host_list($hostname);
     del_hosts_conf($hostname);
@@ -569,9 +588,6 @@ sub process_rekey_host {
         get_host($hostname) or die "Hostname '$hostname' not defined,\n";
 
         $log{'message'} = "Rekeying host '$hostname'";
-        $log{'hosts'}   = [$hostname];
-        $log{'command'} = 'rekeying, commands are up next';
-        write_log(%log);
 
         my %params = get_params($hostname);
 
@@ -703,6 +719,8 @@ sub process_leave_group {
 
     my $yaml = get_yaml();
     $yaml->[0]{'groups'}{$group} = \@members;
+    delete $yaml->[0]{'groups'}{$group}
+      if !scalar @{ $yaml->[0]{'groups'}{$group} };
     $yaml->write($hosts_conf);
 
     return;
@@ -739,4 +757,3 @@ sub process_all {
 
     return;
 }
-
