@@ -79,7 +79,7 @@ GetOptions(
     'join-group'     => \$args{'join-group'},
     'leave-group'    => \$args{'leave-group'},
     'H|list-hosts'   => \$args{'list-hosts'},
-    'H|list-groups'  => \$args{'list-groups'},
+    'G|list-groups'  => \$args{'list-groups'},
     'M|list-members' => \$args{'list-members'},
     'a|all'          => \$args{'all'},
     'F|fork=s'       => \$args{'fork'},
@@ -198,9 +198,9 @@ Options:
                         Optional, 'cogere' is used by default
   -r|--reason         Explanation of the command you are running
   -a|--all            Builds a group of all defined hosts.
-  --lh|--list-hosts   Displays all defined hosts
-  --lg|--list-groups  Displays all defined groups
-  --lm|--list-members Displays all hosts within group
+  -H|--list-hosts     Displays all defined hosts
+  -G|--list-groups    Displays all defined groups
+  -M|--list-members   Displays all hosts within group
                         Requires --group
 
 John Shields - SmartVault Corporation - 2015
