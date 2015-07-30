@@ -39,6 +39,7 @@ use JSON;
 use YAML::Tiny;
 use List::MoreUtils qw/uniq/;
 use POSIX qw/strftime/;
+use Parallel::ForkManager;
 
 my $json_o = JSON->new->utf8;
 my %log = ( 'user' => $ENV{'SUDO_USER'} );
@@ -62,25 +63,26 @@ if ( !@ARGV ) {
 
 my %args;
 GetOptions(
-    'h|help'          => \$args{'help'},
-    'f|config'        => \$args{'config'},
-    'l|host-list=s'   => \$args{'host-list'},
-    'r|reason=s'      => \$args{'reason'},
-    'rekey-hosts'     => \$args{'rekey-hosts'},
-    'add-host'        => \$args{'add-host'},
-    'del-host'        => \$args{'del-host'},
-    'hostname=s'      => \$args{'hostname'},
-    'ipaddr=s'        => \$args{'ipaddr'},
-    'username=s'      => \$args{'username'},
-    'g|group=s'       => \$args{'group'},
-    'add-group'       => \$args{'add-group'},
-    'del-group'       => \$args{'del-group'},
-    'join-group'      => \$args{'join-group'},
-    'leave-group'     => \$args{'leave-group'},
-    'lh|list-hosts'   => \$args{'list-hosts'},
-    'lg|list-groups'  => \$args{'list-groups'},
-    'lm|list-members' => \$args{'list-members'},
-    'a|all'           => \$args{'all'},
+    'h|help'         => \$args{'help'},
+    'f|config'       => \$args{'config'},
+    'l|host-list=s'  => \$args{'host-list'},
+    'r|reason=s'     => \$args{'reason'},
+    'rekey-hosts'    => \$args{'rekey-hosts'},
+    'add-host'       => \$args{'add-host'},
+    'del-host'       => \$args{'del-host'},
+    'hostname=s'     => \$args{'hostname'},
+    'ipaddr=s'       => \$args{'ipaddr'},
+    'username=s'     => \$args{'username'},
+    'g|group=s'      => \$args{'group'},
+    'add-group'      => \$args{'add-group'},
+    'del-group'      => \$args{'del-group'},
+    'join-group'     => \$args{'join-group'},
+    'leave-group'    => \$args{'leave-group'},
+    'H|list-hosts'   => \$args{'list-hosts'},
+    'H|list-groups'  => \$args{'list-groups'},
+    'M|list-members' => \$args{'list-members'},
+    'a|all'          => \$args{'all'},
+    'F|fork=s'       => \$args{'fork'},
 ) or die "Invalid arguments. See $0 -h\n";
 
 my $command = $ARGV[0];
@@ -142,6 +144,8 @@ if ( $args{'all'} ) {
 elsif ( $args{'group'} ) {
     process_group( $args{'group'} );
 }
+
+my $fork_num = $args{'fork'};
 
 if ( $args{'rekey-hosts'} ) {
     process_rekey_host( $args{'host-list'} );
@@ -501,6 +505,55 @@ sub leave_all_groups {
     return;
 }
 
+sub run_command {
+    my ( $hostname, $timestamp ) = @_;
+
+    my %params = get_params($hostname);
+    if ($timestamp) {
+        $params{'private'} = "$keys_dir/$hostname.$timestamp";
+        $params{'public'}  = "$keys_dir/$hostname.$timestamp.pub";
+    }
+    my $ssh = Net::OpenSSH->new(
+        $params{'ipaddr'},
+        'user'              => $params{'username'},
+        'passphrase'        => $params{'password'},
+        'key_path'          => $params{'private'},
+        'default_stdout_fh' => $out_garb,
+        'default_stderr_fh' => $err_garb,
+        'default_stdin_fh'  => $in_garb,
+    );
+    $ssh->error and die "Failed to establish SSH connect: ${\$ssh->error}.\n";
+
+    my ( $out, $pid ) = $ssh->pipe_out($command)
+      or die "Failed to open command pipe ${\$ssh->error}.\n";
+    if ($fork_num) {
+        print "[$hostname] $_" while <$out>;
+    }
+    else {
+        print while <$out>;
+    }
+    close $out;
+
+    return;
+}
+
+sub fork_hosts {
+    my ( $hosts, $timestamp ) = @_;
+
+    my $pm = Parallel::ForkManager->new($fork_num);
+  HOSTS:
+    for my $hostname (@{$hosts}) {
+        $pm->start and next HOSTS;
+
+        run_command( $hostname, $timestamp );
+
+        $pm->finish;
+    }
+    $pm->wait_all_children;
+
+    return ;
+}
+
 sub process_host_list {
     my ( $host_list, $timestamp ) = @_;
 
@@ -518,26 +571,19 @@ sub process_host_list {
 
     write_log(%log);
 
-    for my $hostname (@hosts) {
-        my %params = get_params($hostname);
-        if ($timestamp) {
-            $params{'private'} = "$keys_dir/$hostname.$timestamp";
-            $params{'public'}  = "$keys_dir/$hostname.$timestamp.pub";
+    if ($fork_num) {
+        if ($fork_num =~ /^(a|all)$/) {
+            $fork_num = $#hosts;
         }
-        my $ssh = Net::OpenSSH->new(
-            $params{'ipaddr'},
-            'user'              => $params{'username'},
-            'passphrase'        => $params{'password'},
-            'key_path'          => $params{'private'},
-            'default_stdout_fh' => $out_garb,
-            'default_stderr_fh' => $err_garb,
-            'default_stdin_fh'  => $in_garb,
-        );
-        $ssh->error and die "Failed to establish SSH connect: ${\$ssh->error}.\n";
-        my ( $out, $pid ) = $ssh->pipe_out($command)
-          or die "Failed to open command pipe ${\$ssh->error}.\n";
-        print while <$out>;
-        close $out;
+        elsif ($fork_num !~ /\d+/) {
+            die "Fork argument '$fork_num' is in valid\n";
+        }
+        fork_hosts(\@hosts, $timestamp);
+    }
+    else {
+        for my $hostname (@hosts) {
+            run_command($hostname, $timestamp);
+        }
     }
 
     return;
