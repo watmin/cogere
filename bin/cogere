@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.0.1
+#: Version : 1.1.0
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help|-h
 #: Desc    : Broadcasts commands to select hosts over SSH
