@@ -577,7 +577,7 @@ sub process_host_list {
 
     if ($fork_num) {
         if ($fork_num =~ /^(a|all)$/) {
-            $fork_num = $#hosts;
+            $fork_num = $#hosts + 1;
         }
         elsif ($fork_num !~ /\d+/) {
             die "Fork argument '$fork_num' is in valid\n";
