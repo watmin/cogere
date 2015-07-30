@@ -198,6 +198,10 @@ Options:
                         Optional, 'cogere' is used by default
   -r|--reason         Explanation of the command you are running
   -a|--all            Builds a group of all defined hosts.
+  -F|--fork           Forks supplied number of connections and waits for them
+                        to complete, the continues. The keywords 'a' or 'all'
+                        will produce a fork number equal to the number of
+                        hosts supplied
   -H|--list-hosts     Displays all defined hosts
   -G|--list-groups    Displays all defined groups
   -M|--list-members   Displays all hosts within group
