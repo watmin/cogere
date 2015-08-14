@@ -4,90 +4,440 @@
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="chrome=1">
     <title>Cogere by watmin</title>
-
     <link rel="stylesheet" href="stylesheets/styles.css">
-    <link rel="stylesheet" href="stylesheets/github-light.css">
-    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <link rel="stylesheet" href="stylesheets/github-dark.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js"></script>
+    <script src="javascripts/respond.js"></script>
     <!--[if lt IE 9]>
-    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
     <![endif]-->
+    <!--[if lt IE 8]>
+    <link rel="stylesheet" href="stylesheets/ie.css">
+    <![endif]-->
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
   </head>
   <body>
+      <div id="header">
+        <nav>
+          <li class="fork"><a href="https://github.com/watmin/cogere">View On GitHub</a></li>
+          <li class="downloads"><a href="https://github.com/watmin/cogere/zipball/master">ZIP</a></li>
+          <li class="downloads"><a href="https://github.com/watmin/cogere/tarball/master">TAR</a></li>
+          <li class="title">DOWNLOADS</li>
+        </nav>
+      </div><!-- end header -->
+
     <div class="wrapper">
-      <header>
-        <h1>Cogere</h1>
-        <p>Broadcast commands to remote hosts via SSH</p>
 
-        <p class="view"><a href="https://github.com/watmin/cogere">View the Project on GitHub <small>watmin/cogere</small></a></p>
-
-
-        <ul>
-          <li><a href="https://github.com/watmin/cogere/zipball/master">Download <strong>ZIP File</strong></a></li>
-          <li><a href="https://github.com/watmin/cogere/tarball/master">Download <strong>TAR Ball</strong></a></li>
-          <li><a href="https://github.com/watmin/cogere">View On <strong>GitHub</strong></a></li>
-        </ul>
-      </header>
       <section>
-        <h3>
-<a id="usage" class="anchor" href="#usage" aria-hidden="true"><span class="octicon octicon-link"></span></a>Usage</h3>
+        <div id="title">
+          <h1>Cogere</h1>
+          <p>Broadcast commands to remote hosts via SSH</p>
+          <hr>
+          <span class="credits left">Project maintained by <a href="https://github.com/watmin">watmin</a></span>
+          <span class="credits right">Hosted on GitHub Pages &mdash; Theme by <a href="https://twitter.com/michigangraham">mattgraham</a></span>
+        </div>
 
-<pre><code>./cogere.pl -h
-  cogere -- verb: to collect/gather, to compel/force
+        <h1>
+<a id="cogere" class="anchor" href="#cogere" aria-hidden="true"><span class="octicon octicon-link"></span></a>cogere</h1>
 
-  Usage: cogere --comment 'report hostname' --host-list hostname1,hostname2 'hostname'
+<p>Broadcast commands to remote hosts via SSH</p>
 
-  Operations:
-    --host-list    Comma separated hostname list, command is executed on hosts
-                     if no other operations provided. Requires --comment
-    --rekey-hosts  Creates new SSH key, removes old SSH key and installs
-                     new SSH key on remote host. Requires --host-list
-    --add-host     Creates new host entry and keys remote host.
-                     Requires --hostname, --ipaddr. Optionally --username
-    --del-host     Removes host entry and remove key from remote host
+<h1>
+<a id="usage" class="anchor" href="#usage" aria-hidden="true"><span class="octicon octicon-link"></span></a>Usage</h1>
 
-  Options:
-    -h|--help      Shows this output
-    --hostname     Hostname to be provided to --add-host or --del-host
-    --ipaddr       IP address to be provided to --add-host
-    --username     User name to be provided to --add-host
-                     Optional, 'cogere' is used by default
-    --comment      Explanation of the command you are running
+<pre><code>cogere -- verb: to collect/gather, to compel/force
 
-  John Shields - SmartVault Corporation - 2015
+Usage: cogere --reason 'report hostname' --host-list host1,host2 'hostname'
+
+Operations:
+  -l|--host-list  Comma separated hostname list, command is executed on hosts
+                    if no other operations provided.
+                    Requires --reason
+  --add-host      Creates new host entry and keys remote host.
+                    Requires --hostname, --ipaddr. Optionally --username
+  --del-host      Removes host entry and remove key from remote host
+                    Requires --hostname
+  --rekey-hosts   Creates new SSH key, removes old SSH key and installs
+                    new SSH key on remote host.
+                    Requires --host-list
+  -g|--group      Comma separated group list, command is executed on groups
+                    if no other operations provided.
+                    Requires --reason
+  --add-group     Creates new group of hosts.
+                    Requires --group, --host-list
+  --del-group     Delete group.
+                    Requires --group
+  --join-group    Adds hosts to an existing group.
+                    Requires --group, --host-list
+  --leave-group   Remove hosts from an existing group.
+                    Requires --group, --host-list
+
+Options:
+  -h|--help           Shows this output
+  -f|--config         Alternate configuration file
+  --hostname          Hostname to be provided to --add-host or --del-host
+  --ipaddr            IP address to be provided to --add-host
+  --username          User name to be provided to --add-host
+                        Optional, 'cogere' is used by default
+  -r|--reason         Explanation of the command you are running
+  -a|--all            Builds a group of all defined hosts.
+  -F|--fork           Forks supplied number of connections and waits for them
+                        to complete, the continues. The keywords 'a' or 'all'
+                        will produce a fork number equal to the number of
+                        hosts supplied
+  -H|--list-hosts     Displays all defined hosts
+  -G|--list-groups    Displays all defined groups
+  -M|--list-members   Displays all hosts within group
+                        Requires --group
+
+John Shields - SmartVault Corporation - 2015
 </code></pre>
 
 <h3>
 <a id="example" class="anchor" href="#example" aria-hidden="true"><span class="octicon octicon-link"></span></a>Example</h3>
 
-<pre><code>./cogere.pl --comment 'testing' --host-list arbitrium,cognitio 'hostname; ip addr | perl -ne "print if /tun\d+:/../inet/"; echo'
-LOGGER process_host_list
-$VAR1 = {
-          'application' =&gt; 'cogere',
-          'command' =&gt; 'hostname; ip addr | perl -ne "print if /tun\\d+:/../inet/"; echo',
-          'hosts' =&gt; [
-                       'arbitrium',
-                       'cognitio'
-                     ],
-          'message' =&gt; 'testing',
-          'user' =&gt; 'jshields'
-        };
+<pre><code>cogere -a -r 'report hostname' hostname
 arbitrium.jar00n.net
-4: tun0: &lt;POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP&gt; mtu 1500 qdisc pfifo_fast state UNKNOWN group default qlen 100
-    link/none 
-    inet 172.16.0.1 peer 172.16.0.2/32 scope global tun0
-
 cognitio.watministrator.net
-3: tun0: &lt;POINTOPOINT,MULTICAST,NOARP,UP,LOWER_UP&gt; mtu 1500 qdisc pfifo_fast state UNKNOWN qlen 100
-    link/none 
-    inet 172.16.0.6 peer 172.16.0.5/32 scope global tun0
+
 </code></pre>
+
+<h3>
+<a id="installation" class="anchor" href="#installation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Installation</h3>
+
+<p><code>cogere</code> expects to be installed within the directory <code>/opt/sv</code>. The files in <code>bin</code>, <code>cogere</code> and <code>lib</code> are built with the assumed relative path of <code>/opt/sv</code>. If you install this tool into another directory you will either need to update the default directory variable within <code>bin/cogere</code> or always supply the <code>--config|-f</code> switch to load the alternate configuration.</p>
+
+<h4>
+<a id="configuration" class="anchor" href="#configuration" aria-hidden="true"><span class="octicon octicon-link"></span></a>Configuration</h4>
+
+<p>You will need to setup the configuration file <code>cogere/cogere.conf</code> for you environment. The defaults within <code>cogere/cogere.conf</code> should be sufficient for your needs. Though you will likely need to remove the logstash entry from the log_type list.</p>
+
+<h5>
+<a id="logging" class="anchor" href="#logging" aria-hidden="true"><span class="octicon octicon-link"></span></a>Logging</h5>
+
+<p>The <code>logstash</code> type is intended for use with a logstash listener on a TCP/UDP port with a filter performing JSON parsing.
+The <code>file</code> type simply write to the defined <code>log_file</code>.</p>
+
+<h4>
+<a id="sudo" class="anchor" href="#sudo" aria-hidden="true"><span class="octicon octicon-link"></span></a>sudo</h4>
+
+<p><code>cogere</code> expects to be ran under <code>sudo</code> and will not run if sudo was not invoked. This is for logging purposes.</p>
+
+<p>Once all three directories (<code>bin</code>, <code>cogere</code>, <code>lib</code>) are installed within the same parent directory you will need to allow your user account(s) to run the tool via sudo. By convention we use the group <code>admin</code> to run this tool.</p>
+
+<p>Example sudo config:</p>
+
+<pre><code>Cmnd_Alias COGERE = /opt/sv/bin/cogere
+%admin ALL=NOPASSWD:COGERE
+</code></pre>
+
+<p>To simplify the use of the tool I create the following alias for all users, I add it to the <code>/etc/profile</code> file:</p>
+
+<p>Example alias definition:</p>
+
+<pre><code>alias cogere='sudo /opt/sv/bin/cogere'
+</code></pre>
+
+<h3>
+<a id="documentation" class="anchor" href="#documentation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Documentation</h3>
+
+<h4>
+<a id="operations" class="anchor" href="#operations" aria-hidden="true"><span class="octicon octicon-link"></span></a>Operations</h4>
+
+<p>Operations perform a given operation on a set of supplied parameters from the options detailed below. If multiple operations are provided, only one will be performed.</p>
+
+<p><strong>Don't supply multiple operations.</strong></p>
+
+<h6>
+<a id="--host-list---l" class="anchor" href="#--host-list---l" aria-hidden="true"><span class="octicon octicon-link"></span></a>--host-list | -l</h6>
+
+<p>The <code>--host-list</code> switch is both an operation and an option. When using another operation it provides the list of hosts to the operation.</p>
+
+<p>If ran with no other operations, it runs the supplied command on the host. Can supply multiple hosts comma separated</p>
+
+<p><strong>REQUIRES <code>--reason|-r</code>, <code>command</code></strong></p>
+
+<p>Example:</p>
+
+<pre><code>cogere --reason 'report hostname' --host-list arbitrium,cognitio 'hostname'
+arbitrium.jar00n.net
+cognitio.watministrator.net
+</code></pre>
+
+<h6>
+<a id="--group---g" class="anchor" href="#--group---g" aria-hidden="true"><span class="octicon octicon-link"></span></a>--group | -g</h6>
+
+<p>The <code>--group</code> switch is both an operation and an option. When using another operation it evaluates the group(s) to a list of hosts for the operation.</p>
+
+<p>If ran with no other operations, it runs the supplied command on the group. Can supply multiple groups comma separated.</p>
+
+<p><strong>REQUIRES <code>--reason|-r</code>, <code>command</code></strong></p>
+
+<p>Example:</p>
+
+<pre><code>cogere --reason 'report hostname' --group testing 'hostname'
+arbitrium.jar00n.net
+cognitio.watministrator.net
+</code></pre>
+
+<h6>
+<a id="--add-host" class="anchor" href="#--add-host" aria-hidden="true"><span class="octicon octicon-link"></span></a>--add-host</h6>
+
+<p>Adds the supplied host to the hosts configuration. The command must be provided <code>--hostname</code> and <code>--ipaddr</code> containing the hostname and IP address of the node. Optionally takes a <code>--username</code>, the default username is cogere.</p>
+
+<p><strong>REQUIRES <code>--hostname</code>, <code>--ipaddr</code></strong>
+<strong>OPTIONAL <code>--username</code></strong></p>
+
+<p>Example:</p>
+
+<pre><code>cogere --add-host --hostname cognitio --ipaddr 172.16.0.6
+/usr/bin/ssh-copy-id: INFO: attempting to log in with the new key(s), to filter out any that are already installed
+/usr/bin/ssh-copy-id: INFO: 1 key(s) remain to be installed -- if you are prompted now it is to install the new keys
+WARNING : Unauthorized access to this system is forbidden and will be
+prosecuted by law. By accessing this system, you agree that your actions
+may be monitored if unauthorized usage is suspected.
+cogere@172.16.0.6's password:
+</code></pre>
+
+<p><em>I suggest that you remove the account's password once keyed.</em></p>
+
+<h6>
+<a id="--del-host" class="anchor" href="#--del-host" aria-hidden="true"><span class="octicon octicon-link"></span></a>--del-host</h6>
+
+<p>Deletes the supplied host from the local hosts configuration, removes the SSH key from the node and deletes the local SSH keys for the node. Also removes host from any groups</p>
+
+<p><strong>REQUIRES <code>--hostname</code></strong></p>
+
+<p>Example:</p>
+
+<pre><code>cogere --del-host --hostname cognitio
+</code></pre>
+
+<h6>
+<a id="--add-group" class="anchor" href="#--add-group" aria-hidden="true"><span class="octicon octicon-link"></span></a>--add-group</h6>
+
+<p>Creates a new group using the supplied group name, adding members to the group from the provided host list</p>
+
+<p><strong>REQUIRES <code>--group|-g</code>, <code>--host-list</code></strong></p>
+
+<p>Example:</p>
+
+<pre><code>cogere --add-group --group moar-hosts --host-list arbitrium
+</code></pre>
+
+<h6>
+<a id="--del-group" class="anchor" href="#--del-group" aria-hidden="true"><span class="octicon octicon-link"></span></a>--del-group</h6>
+
+<p>Deletes supplied group. Does not delete host entries.</p>
+
+<p><strong>REQUIRES <code>--group|-g</code></strong></p>
+
+<p>Example:</p>
+
+<pre><code>cogere --del-group --group moar-hosts
+</code></pre>
+
+<h6>
+<a id="--join-group" class="anchor" href="#--join-group" aria-hidden="true"><span class="octicon octicon-link"></span></a>--join-group</h6>
+
+<p>Adds provided hosts to provided group</p>
+
+<p><strong>REQUIRES <code>--group|-g</code>, <code>--host-list|-l</code></strong></p>
+
+<p>Example:</p>
+
+<pre><code>cogere --join-group --group moar-hosts --host-list cognitio
+</code></pre>
+
+<h6>
+<a id="--leave-group" class="anchor" href="#--leave-group" aria-hidden="true"><span class="octicon octicon-link"></span></a>--leave-group</h6>
+
+<p>Removes provided hosts to provided group</p>
+
+<p><strong>REQUIRES <code>--group|-g</code>, <code>--host-list|-l</code></strong></p>
+
+<p>Example:</p>
+
+<pre><code>cogere --leave-group --group moar-hosts --host-list arbitrium
+</code></pre>
+
+<h5>
+<a id="options" class="anchor" href="#options" aria-hidden="true"><span class="octicon octicon-link"></span></a>Options</h5>
+
+<p>Options are optional parameters unless other noted for given operation.</p>
+
+<h6>
+<a id="--config---f" class="anchor" href="#--config---f" aria-hidden="true"><span class="octicon octicon-link"></span></a>--config | -f</h6>
+
+<p>Allows for loading of a different configuration file. You likely won't ever use this.</p>
+
+<h6>
+<a id="--hostname" class="anchor" href="#--hostname" aria-hidden="true"><span class="octicon octicon-link"></span></a>--hostname</h6>
+
+<p>Provides hostname variable to <code>--add-host</code> or <code>--del-host</code></p>
+
+<h6>
+<a id="--ipaddr" class="anchor" href="#--ipaddr" aria-hidden="true"><span class="octicon octicon-link"></span></a>--ipaddr</h6>
+
+<p>Provides IP address variable to <code>--add-host</code> or <code>--del-host</code></p>
+
+<h6>
+<a id="--reason---r" class="anchor" href="#--reason---r" aria-hidden="true"><span class="octicon octicon-link"></span></a>--reason | -r</h6>
+
+<p>Provides a reason as to why you are doing what you are doing on the host-list or group</p>
+
+<h6>
+<a id="--all---a" class="anchor" href="#--all---a" aria-hidden="true"><span class="octicon octicon-link"></span></a>--all | -a</h6>
+
+<p>Builds a <code>--host-list</code> of all defined hosts.</p>
+
+<h6>
+<a id="--fork---f" class="anchor" href="#--fork---f" aria-hidden="true"><span class="octicon octicon-link"></span></a>--fork | -F</h6>
+
+<p>The <code>--fork|-F</code> option allows the script to process connections in parallel. This option takes either an integer for max number of concurrent connections or the keywords <code>a</code> or <code>all</code> to produce an integer for all hosts supplied.</p>
+
+<p>When forking is used, all lines are prefixed with the hostname the line came from.</p>
+
+<p>Example:</p>
+
+<pre><code>cogere -r 'forking' -a -F a 'for i in {0..5}; do sleep $(( $RANDOM % 3 )); echo $i; done'
+[arbitrium] 0
+[cognitio] 0
+[cognitio] 1
+[cognitio] 2
+[arbitrium] 1
+[cognitio] 3
+[arbitrium] 2
+[cognitio] 4
+[cognitio] 5
+[arbitrium] 3
+[arbitrium] 4
+[arbitrium] 5
+
+</code></pre>
+
+<h6>
+<a id="--list-hosts---h" class="anchor" href="#--list-hosts---h" aria-hidden="true"><span class="octicon octicon-link"></span></a>--list-hosts | -H</h6>
+
+<p>Lists all defined hosts.</p>
+
+<p>Example:</p>
+
+<pre><code>cogere --list-hosts
+arbitrium
+cognitio
+</code></pre>
+
+<h6>
+<a id="--list-groups---g" class="anchor" href="#--list-groups---g" aria-hidden="true"><span class="octicon octicon-link"></span></a>--list-groups | -G</h6>
+
+<p>Lists all defined groups and their members.</p>
+
+<p>Example:</p>
+
+<pre><code>cogere --list-groups
+moar-hosts - cognitio
+testing - arbitrium
+</code></pre>
+
+<h6>
+<a id="--list-members---m" class="anchor" href="#--list-members---m" aria-hidden="true"><span class="octicon octicon-link"></span></a>--list-members | -M</h6>
+
+<p>Lists members of supplied group</p>
+
+<p><strong>REQUIRES <code>--group|-g</code></strong></p>
+
+<p>Example:</p>
+
+<pre><code>cogere --list-members --group testing
+testing - arbitrium
+</code></pre>
+
+<h5>
+<a id="notes" class="anchor" href="#notes" aria-hidden="true"><span class="octicon octicon-link"></span></a>Notes</h5>
+
+<p>These are various examples and use cases demonstrating the tool's functionality.</p>
+
+<h6>
+<a id="heredocs" class="anchor" href="#heredocs" aria-hidden="true"><span class="octicon octicon-link"></span></a>Heredocs</h6>
+
+<p>You can supply heredocs as the command if they properly shell escaped.</p>
+
+<p>Example:</p>
+
+<pre><code>cogere -r 'heredoc demo' -a 'perl &lt;&lt;'\''EOF'\'
+use strict;
+use warnings;
+
+use Sys::Hostname;
+
+print "Hi! My name is ${\hostname}\n";
+
+exit;
+EOF
+echo My username is $(whoami)
+echo
+'
+Hi! My name is arbitrium.jar00n.net
+My username is cogere
+
+Hi! My name is cognitio.watministrator.net
+My username is cogere
+
+</code></pre>
+
+<p><strong>Remember: To escape a single quote use the following sequence <code>'\''</code></strong></p>
+
+<h6>
+<a id="forking" class="anchor" href="#forking" aria-hidden="true"><span class="octicon octicon-link"></span></a>Forking</h6>
+
+<p>It is important to note that output lines are only sent back when the remote side flushes their buffers. So, if you cat a file it will be printed intact on the cogere side.</p>
+
+<p>Example:</p>
+
+<pre><code>cogere -r 'stdout forking' -a -F a 'head -n3 /etc/hosts'
+[arbitrium] 127.0.0.1   localhost
+[arbitrium] 127.0.1.1   arbitrium.jar00n.net    arbitrium
+[arbitrium] 
+[cognitio] 127.0.0.1    localhost
+[cognitio] 127.0.1.1    cognitio.watministrator.net cognitio
+[cognitio] 
+</code></pre>
+
+<p>However, if the output is flushed on each line, then the output will be printed one line at a time causing the output on cogere to be intermixed with lines from the hosts being connected to.</p>
+
+<p>Example:</p>
+
+<pre><code>cogere -r 'stdout forking' -a -F a 'while read line; do echo "$line"; sleep 1; done &lt; &lt;(head -n3 /etc/hosts)'
+[arbitrium] 127.0.0.1   localhost
+[cognitio] 127.0.0.1    localhost
+[arbitrium] 127.0.1.1   arbitrium.jar00n.net    arbitrium
+[cognitio] 127.0.1.1    cognitio.watministrator.net cognitio
+[arbitrium] 
+[cognitio] 
+</code></pre>
+
+<p>Here I used <code>sleep</code> to break up the command output to ensure the lines were sent one at a time, depending on the speed of the operation all lines could be sent in tact like the previous example.</p>
+
+<h3>
+<a id="to-dos" class="anchor" href="#to-dos" aria-hidden="true"><span class="octicon octicon-link"></span></a>To do's</h3>
+
+<ul>
+<li>Allow for hostname negation</li>
+<li>Replace comma separated hosts/groups with multiple <code>-l/g</code> switches (Allows for tab completion)</li>
+<li>Allow for host removal of unreachable hosts</li>
+<li>Allow for use of preexisting key in <code>--add-host</code> (Allows for automated deploy hosts to be already keyed, will rekey on add)</li>
+<li>Allow for hosts to added to groups on creation</li>
+<li>Optionally use DNS if <code>--ipaddr</code> not provided with <code>--add-host</code>
+</li>
+<li>Build tab completion file</li>
+<li>Add verbosity to commands with no output (Add/Del Host/Group)</li>
+</ul>
       </section>
-      <footer>
-        <p>This project is maintained by <a href="https://github.com/watmin">watmin</a></p>
-        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
-      </footer>
+
     </div>
-    <script src="javascripts/scale.fix.js"></script>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
     
   </body>
 </html>
