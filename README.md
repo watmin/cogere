@@ -69,11 +69,252 @@ Operations perform a given operation on a set of supplied parameters from the op
 
 ###### --host-list | -l
 
-The --host-list switch is both an operation and an option. When using another operation it provides the list of hosts to the operation.
+The `--host-list` switch is both an operation and an option. When using another operation it provides the list of hosts to the operation.
 
 If ran with no other operations, it runs the supplied command on the host. Can supply multiple hosts comma separated
 
-**REQUIRES `--reason|-r, command`**
+**REQUIRES `--reason|-r`, `command`**
+
+Example:
+```
+cogere --reason 'report hostname' --host-list arbitrium,cognitio 'hostname'
+arbitrium.jar00n.net
+cognitio.watministrator.net
+```
+
+###### --group | -g
+
+The `--group` switch is both an operation and an option. When using another operation it evaluates the group(s) to a list of hosts for the operation.
+
+If ran with no other operations, it runs the supplied command on the group. Can supply multiple groups comma separated.
+
+**REQUIRES `--reason|-r`, `command`**
+
+Example:
+```
+cogere --reason 'report hostname' --group testing 'hostname'
+arbitrium.jar00n.net
+cognitio.watministrator.net
+```
+
+###### --add-host
+
+Adds the supplied host to the hosts configuration. The command must be provided `--hostname` and `--ipaddr` containing the hostname and IP address of the node. Optionally takes a `--username`, the default username is cogere.
+
+**REQUIRES `--hostname`, `--ipaddr`**
+**OPTIONAL `--username`**
+
+Example:
+```
+cogere --add-host --hostname cognitio --ipaddr 172.16.0.6
+/usr/bin/ssh-copy-id: INFO: attempting to log in with the new key(s), to filter out any that are already installed
+/usr/bin/ssh-copy-id: INFO: 1 key(s) remain to be installed -- if you are prompted now it is to install the new keys
+WARNING : Unauthorized access to this system is forbidden and will be
+prosecuted by law. By accessing this system, you agree that your actions
+may be monitored if unauthorized usage is suspected.
+cogere@172.16.0.6's password:
+```
+
+*I suggest that you remove the account's password once keyed.*
+
+###### --del-host
+
+Deletes the supplied host from the local hosts configuration, removes the SSH key from the node and deletes the local SSH keys for the node. Also removes host from any groups
+
+**REQUIRES `--hostname`**
+
+Example:
+```
+cogere --del-host --hostname cognitio
+```
+
+###### --add-group
+
+Creates a new group using the supplied group name, adding members to the group from the provided host list
+
+**REQUIRES `--group|-g`, `--host-list`**
+
+Example:
+```
+cogere --add-group --group moar-hosts --host-list arbitrium
+```
+###### --del-group
+
+Deletes supplied group. Does not delete host entries.
+
+**REQUIRES `--group|-g`**
+
+Example:
+```
+cogere --del-group --group moar-hosts
+```
+
+###### --join-group
+
+Adds provided hosts to provided group
+
+**REQUIRES `--group|-g`, `--host-list|-l`**
+
+Example:
+```
+cogere --join-group --group moar-hosts --host-list cognitio
+```
+
+###### --leave-group
+
+Removes provided hosts to provided group
+
+**REQUIRES `--group|-g`, `--host-list|-l`**
+
+Example:
+```
+cogere --leave-group --group moar-hosts --host-list arbitrium
+```
+
+##### Options
+
+Options are optional parameters unless other noted for given operation.
+
+###### --config | -f
+
+Allows for loading of a different configuration file. You likely won't ever use this.
+
+###### --hostname
+
+Provides hostname variable to `--add-host` or `--del-host`
+
+###### --ipaddr
+
+Provides IP address variable to `--add-host` or `--del-host`
+
+###### --reason | -r
+
+Provides a reason as to why you are doing what you are doing on the host-list or group
+
+###### --all | -a
+
+Builds a `--host-list` of all defined hosts.
+
+###### --fork | -F
+
+The `--fork|-F` option allows the script to process connections in parallel. This option takes either an integer for max number of concurrent connections or the keywords `a` or `all` to produce an integer for all hosts supplied.
+
+When forking is used, all lines are prefixed with the hostname the line came from.
+
+Example:
+```
+cogere -r 'forking' -a -F a 'for i in {0..5}; do sleep $(( $RANDOM % 3 )); echo $i; done'
+[arbitrium] 0
+[cognitio] 0
+[cognitio] 1
+[cognitio] 2
+[arbitrium] 1
+[cognitio] 3
+[arbitrium] 2
+[cognitio] 4
+[cognitio] 5
+[arbitrium] 3
+[arbitrium] 4
+[arbitrium] 5
+
+```
+
+###### --list-hosts | -H
+
+Lists all defined hosts.
+
+Example:
+```
+cogere --list-hosts
+arbitrium
+cognitio
+```
+
+###### --list-groups | -G
+
+Lists all defined groups and their members.
+
+Example:
+```
+cogere --list-groups
+moar-hosts - cognitio
+testing - arbitrium
+```
+
+###### --list-members | -M
+
+Lists members of supplied group
+
+**REQUIRES `--group|-g`**
+
+Example:
+```
+cogere --list-members --group testing
+testing - arbitrium
+```
+
+##### Notes
+
+These are various examples and use cases demonstrating the tool's functionality.
+
+###### Heredocs
+
+You can supply heredocs as the command if they properly shell escaped.
+
+Example:
+```
+cogere -r 'heredoc demo' -a 'perl <<'\''EOF'\'
+use strict;
+use warnings;
+
+use Sys::Hostname;
+
+print "Hi! My name is ${\hostname}\n";
+
+exit;
+EOF
+echo My username is $(whoami)
+echo
+'
+Hi! My name is arbitrium.jar00n.net
+My username is cogere
+
+Hi! My name is cognitio.watministrator.net
+My username is cogere
+
+```
+
+**Remember: To escape a single quote use the following sequence `'\''`**
+
+###### Forking
+
+It is important to note that output lines are only sent back when the remote side flushes their buffers. So, if you cat a file it will be printed intact on the cogere side.
+
+Example:
+```
+cogere -r 'stdout forking' -a -F a 'head -n3 /etc/hosts'
+[arbitrium] 127.0.0.1	localhost
+[arbitrium] 127.0.1.1	arbitrium.jar00n.net	arbitrium
+[arbitrium] 
+[cognitio] 127.0.0.1	localhost
+[cognitio] 127.0.1.1	cognitio.watministrator.net cognitio
+[cognitio] 
+```
+
+However, if the output is flushed on each line, then the output will be printed one line at a time causing the output on cogere to be intermixed with lines from the hosts being connected to.
+
+Example:
+```
+cogere -r 'stdout forking' -a -F a 'while read line; do echo "$line"; sleep 1; done < <(head -n3 /etc/hosts)'
+[arbitrium] 127.0.0.1	localhost
+[cognitio] 127.0.0.1	localhost
+[arbitrium] 127.0.1.1	arbitrium.jar00n.net	arbitrium
+[cognitio] 127.0.1.1	cognitio.watministrator.net cognitio
+[arbitrium] 
+[cognitio] 
+```
+
+Here I used `sleep` to break up the command output to ensure the lines were sent one at a time, depending on the speed of the operation all lines could be sent in tact like the previous example.
 
 ### To do's
 - Allow for hostname negation
@@ -82,3 +323,5 @@ If ran with no other operations, it runs the supplied command on the host. Can s
 - Allow for use of preexisting key in --add-host (Allows for automated deploy hosts to be already keyed, will rekey on add)
 - Allow for hosts to added to groups on creation
 - Optionally use DNS if --ipaddr not provided with --add-host
+- Build tab completion file
+- Add verbosity to commands with no output (Add/Del Host/Group)

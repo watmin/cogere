@@ -4,3 +4,4 @@ Allow for host removal of unreachable hosts
 Allow for use of preexisting key in --add-host (Allows for automated deploy hosts to be already keyed, will rekey on add)
 Allow for hosts to added to groups on creation
 Optionally use DNS if --ipaddr not provided with --add-host
+Build tab completion file
