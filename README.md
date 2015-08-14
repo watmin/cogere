@@ -2,6 +2,7 @@
 Broadcast commands to remote hosts via SSH
 
 # Usage
+i need to update this, very out of date...
 ```
 ./cogere.pl -h
   cogere -- verb: to collect/gather, to compel/force
