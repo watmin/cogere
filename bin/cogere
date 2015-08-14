@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.1.0
+#: Version : 1.2.0
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help|-h
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -40,6 +40,8 @@ use YAML::Tiny;
 use List::MoreUtils qw/uniq/;
 use POSIX qw/strftime/;
 use Parallel::ForkManager;
+
+die "Not being ran from sudo!\n" if !$ENV{'SUDO_USER'};
 
 my $json_o = JSON->new->utf8;
 my %log = ( 'user' => $ENV{'SUDO_USER'} );
@@ -526,7 +528,10 @@ sub run_command {
         'default_stderr_fh' => $err_garb,
         'default_stdin_fh'  => $in_garb,
     );
-    $ssh->error and die "Failed to establish SSH connect: ${\$ssh->error}.\n";
+    if ($ssh->error) {
+        warn "Failed to SSH to '$hostname': ${\$ssh->error}.\n";
+        return 1;
+    }
 
     my ( $out, $pid ) = $ssh->pipe_out($command)
       or die "Failed to open command pipe ${\$ssh->error}.\n";
@@ -580,7 +585,7 @@ sub process_host_list {
             $fork_num = $#hosts + 1;
         }
         elsif ($fork_num !~ /\d+/) {
-            die "Fork argument '$fork_num' is in valid\n";
+            die "Fork argument '$fork_num' is invalid\n";
         }
         fork_hosts(\@hosts, $timestamp);
     }
