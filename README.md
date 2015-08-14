@@ -68,6 +68,7 @@ You will need to setup the configuration file `cogere/cogere.conf` for you envir
 ##### Logging
 
 The `logstash` type is intended for use with a logstash listener on a TCP/UDP port with a filter performing JSON parsing.
+
 The `file` type simply write to the defined `log_file`.
 
 #### sudo
@@ -132,6 +133,7 @@ cognitio.watministrator.net
 Adds the supplied host to the hosts configuration. The command must be provided `--hostname` and `--ipaddr` containing the hostname and IP address of the node. Optionally takes a `--username`, the default username is cogere.
 
 **REQUIRES `--hostname`, `--ipaddr`**
+
 **OPTIONAL `--username`**
 
 Example:
