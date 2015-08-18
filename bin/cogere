@@ -65,7 +65,7 @@ my %args;
 GetOptions(
     'h|help'         => \$args{'help'},
     'f|config'       => \$args{'config'},
-    'l|host-list=s@' => \$args{'host-list'},
+    'l|host=s@'      => \$args{'host'},
     'r|reason=s'     => \$args{'reason'},
     'rekey-hosts'    => \$args{'rekey-hosts'},
     'add-host'       => \$args{'add-host'},
@@ -124,7 +124,7 @@ elsif ( $args{'add-host'} ) {
     exit;
 }
 elsif ( $args{'add-group'} ) {
-    process_add_group( $args{'group'}, $args{'host-list'} );
+    process_add_group( $args{'group'}, $args{'host'} );
     exit;
 }
 elsif ( $args{'del-group'} ) {
@@ -132,11 +132,11 @@ elsif ( $args{'del-group'} ) {
     exit;
 }
 elsif ( $args{'join-group'} ) {
-    process_join_group( $args{'group'}, $args{'host-list'} );
+    process_join_group( $args{'group'}, $args{'host'} );
     exit;
 }
 elsif ( $args{'leave-group'} ) {
-    process_leave_group( $args{'group'}, $args{'host-list'} );
+    process_leave_group( $args{'group'}, $args{'host'} );
     exit;
 }
 
@@ -149,12 +149,12 @@ elsif ( $args{'group'} ) {
 
 my $fork_num = $args{'fork'};
 
-if ($args{'host-list'}) {
-    @target_hosts = ( @target_hosts, @{$args{'host-list'}} );
+if ( $args{'host'} ) {
+    @target_hosts = ( @target_hosts, @{ $args{'host'} } );
 }
 
 if ( $args{'rekey-hosts'} ) {
-    process_rekey_host(\@target_hosts);
+    process_rekey_host( \@target_hosts );
     exit;
 }
 
@@ -170,11 +170,11 @@ sub help {
     print <<EOH;
 cogere -- verb: to collect/gather, to compel/force
 
-Usage: cogere --reason 'report hostname' --host-list host1,host2 'hostname'
+Usage: cogere --reason 'report hostname' --host host1 --host host2 'hostname'
 
 Operations:
-  -l|--host-list  Comma separated hostname list, command is executed on hosts
-                    if no other operations provided.
+  -l|--host       Host to connect to, can be provided multiple times. Command
+                    is executed on hosts if no other operations provided.
                     Requires -r|--reason
   --add-host      Creates new host entry and keys remote host.
                     Requires --hostname, --ipaddr. Optionally --username
@@ -182,18 +182,18 @@ Operations:
                     Requires --hostname
   --rekey-hosts   Creates new SSH key, removes old SSH key and installs
                     new SSH key on remote host.
-                    Requires -l|--host-list
-  -g|--group      Comma separated group list, command is executed on groups
-                    if no other operations provided.
+                    Requires -l|--host
+  -g|--group      Group to connect to, can be provided multiple times. Command
+                    is executed on groups if no other operations provided.
                     Requires -r|--reason
   --add-group     Creates new group of hosts.
-                    Requires -g|--group, -h|--host-list
+                    Requires -g|--group, -h|--host
   --del-group     Delete group.
                     Requires -g|--group
   --join-group    Adds hosts to an existing group.
-                    Requires -g|--group, -l|--host-list
+                    Requires -g|--group, -l|--host
   --leave-group   Remove hosts from an existing group.
-                    Requires -g|--group, -l|--host-list
+                    Requires -g|--group, -l|--host
 
 Options:
   -h|--help           Shows this output
@@ -486,8 +486,8 @@ sub del_remote_key {
 
     my %params = get_params($hostname);
     $params{'remoteid'} = $remoteid if $remoteid;
-    $command = "sed -i '/$params{'remoteid'}\$/d' /home/$params{'username'}/.ssh/authorized_keys";
-    $args{'reason'} = "Removing SSH key from $hostname";
+    $command            = "sed -i '/$params{'remoteid'}\$/d' /home/$params{'username'}/.ssh/authorized_keys";
+    $args{'reason'}     = "Removing SSH key from $hostname";
 
     return;
 }
@@ -536,7 +536,7 @@ sub open_ssh {
         'default_stdin_fh'  => $in_garb,
     );
 
-    if ($ssh->error) {
+    if ( $ssh->error ) {
         warn "Failed to SSH to '$hostname': ${\$ssh->error}.\n";
         return 1;
     }
@@ -565,14 +565,14 @@ sub run_command {
     }
 
     my ( $out, $pid ) = $ssh->pipe_out($command);
-    
-    if ($ssh->error) {
+
+    if ( $ssh->error ) {
         warn "Failed to open command pipe on '$hostname': ${\$ssh->error}.\n";
         return 1;
     }
 
-    if ($fork_num) { print "[$hostname] $_" while <$out> }
-    else           { print while <$out> }
+    if   ($fork_num) { print "[$hostname] $_" while <$out> }
+    else             { print                  while <$out> }
     close $out;
 
     return;
@@ -583,7 +583,7 @@ sub fork_hosts {
 
     my $pm = Parallel::ForkManager->new($fork_num);
   HOSTS:
-    for my $hostname (@{$hosts}) {
+    for my $hostname ( @{$hosts} ) {
         $pm->start and next HOSTS;
 
         run_command( $hostname, $timestamp, $scp_file, $scp_target );
@@ -623,7 +623,7 @@ sub process_host_list {
     $args{'reason'} or die "Reason was not provided.\n";
 
     my @dirty_hosts = @{$host_list};
-    my @hosts = uniq @dirty_hosts;
+    my @hosts       = uniq @dirty_hosts;
     validate_hosts(@hosts);
 
     $log{'hosts'}   = \@hosts;
@@ -633,10 +633,10 @@ sub process_host_list {
     write_log(%log);
 
     if ($fork_num) {
-        if ($fork_num =~ /^(a|all)$/) {
+        if ( $fork_num =~ /^(a|all)$/ ) {
             $fork_num = $#hosts + 1;
         }
-        elsif ($fork_num !~ /\d+/) {
+        elsif ( $fork_num !~ /\d+/ ) {
             die "Fork argument '$fork_num' is invalid\n";
         }
         fork_hosts( \@hosts, $timestamp, $scp_file, $scp_target );
@@ -838,7 +838,7 @@ sub process_group {
 
     $group_list or die "Groups were not provided.\n";
     my @dirty_groups = @{$group_list};
-    my @groups = uniq @dirty_groups;
+    my @groups       = uniq @dirty_groups;
 
     my @hosts;
     for my $group (@groups) {
