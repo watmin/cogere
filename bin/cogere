@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.2.0
+#: Version : 1.3.0
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help|-h
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -46,10 +46,6 @@ die "Not being ran from sudo!\n" if !$ENV{'SUDO_USER'};
 my $json_o = JSON->new->utf8;
 my %log = ( 'user' => $ENV{'SUDO_USER'} );
 
-open my $in_garb,  '<', '/dev/null';
-open my $out_garb, '>', '/dev/null';
-open my $err_garb, '>', '/dev/null';
-
 my $def_base_dir = '/opt/sv/cogere';
 my $base_dir     = $def_base_dir;
 my $def_config   = "$base_dir/conf/cogere.conf";
@@ -85,6 +81,8 @@ GetOptions(
     'M|list-members' => \$args{'list-members'},
     'a|all'          => \$args{'all'},
     'F|fork=s'       => \$args{'fork'},
+    's|scp-file=s'   => \$args{'scp-file'},
+    't|scp-target=s' => \$args{'scp-target'},
 ) or die "Invalid arguments. See $0 -h\n";
 
 my $command = $ARGV[0];
@@ -155,7 +153,7 @@ if ( $args{'rekey-hosts'} ) {
 }
 
 if ( $args{'host-list'} ) {
-    process_host_list( $args{'host-list'} );
+    process_host_list( $args{'host-list'}, 0, $args{'scp-file'}, $args{'scp-target'} );
     exit;
 }
 else {
@@ -171,25 +169,25 @@ Usage: cogere --reason 'report hostname' --host-list host1,host2 'hostname'
 Operations:
   -l|--host-list  Comma separated hostname list, command is executed on hosts
                     if no other operations provided.
-                    Requires --reason
+                    Requires -r|--reason
   --add-host      Creates new host entry and keys remote host.
                     Requires --hostname, --ipaddr. Optionally --username
   --del-host      Removes host entry and remove key from remote host
                     Requires --hostname
   --rekey-hosts   Creates new SSH key, removes old SSH key and installs
                     new SSH key on remote host.
-                    Requires --host-list
+                    Requires -l|--host-list
   -g|--group      Comma separated group list, command is executed on groups
                     if no other operations provided.
-                    Requires --reason
+                    Requires -r|--reason
   --add-group     Creates new group of hosts.
-                    Requires --group, --host-list
+                    Requires -g|--group, -h|--host-list
   --del-group     Delete group.
-                    Requires --group
+                    Requires -g|--group
   --join-group    Adds hosts to an existing group.
-                    Requires --group, --host-list
+                    Requires -g|--group, -l|--host-list
   --leave-group   Remove hosts from an existing group.
-                    Requires --group, --host-list
+                    Requires -g|--group, -l|--host-list
 
 Options:
   -h|--help           Shows this output
@@ -207,7 +205,11 @@ Options:
   -H|--list-hosts     Displays all defined hosts
   -G|--list-groups    Displays all defined groups
   -M|--list-members   Displays all hosts within group
-                        Requires --group
+                        Requires -g|--group
+  -s|--scp-file       Performs an scp on local file
+                        Requires -t|--scp-target
+  -t|--scp-target     Performs an scp to target remote directory
+                        Requires -s|--scp-file
 
 John Shields - SmartVault Corporation - 2015
 EOH
@@ -511,14 +513,13 @@ sub leave_all_groups {
     return;
 }
 
-sub run_command {
-    my ( $hostname, $timestamp ) = @_;
+sub open_ssh {
+    my ( $hostname, %params ) = @_;
 
-    my %params = get_params($hostname);
-    if ($timestamp) {
-        $params{'private'} = "$keys_dir/$hostname.$timestamp";
-        $params{'public'}  = "$keys_dir/$hostname.$timestamp.pub";
-    }
+    open my $in_garb,  '<', '/dev/null';
+    open my $out_garb, '>', '/dev/null';
+    open my $err_garb, '>', '/dev/null';
+
     my $ssh = Net::OpenSSH->new(
         $params{'ipaddr'},
         'user'              => $params{'username'},
@@ -528,43 +529,88 @@ sub run_command {
         'default_stderr_fh' => $err_garb,
         'default_stdin_fh'  => $in_garb,
     );
+
     if ($ssh->error) {
         warn "Failed to SSH to '$hostname': ${\$ssh->error}.\n";
         return 1;
     }
 
-    my ( $out, $pid ) = $ssh->pipe_out($command)
-      or die "Failed to open command pipe ${\$ssh->error}.\n";
-    if ($fork_num) {
-        print "[$hostname] $_" while <$out>;
+    return $ssh;
+}
+
+sub run_command {
+    my ( $hostname, $timestamp, $scp_file, $scp_target ) = @_;
+
+    my %params = get_params($hostname);
+    if ($timestamp) {
+        $params{'private'} = "$keys_dir/$hostname.$timestamp";
+        $params{'public'}  = "$keys_dir/$hostname.$timestamp.pub";
     }
-    else {
-        print while <$out>;
+
+    my $ssh = open_ssh( $hostname, %params );
+    return 1 if $ssh == 1;
+
+    if ( $scp_file and $scp_target ) {
+        my $copy_failed = copy_file( $scp_file, $scp_target, $ssh );
+        if ($copy_failed) {
+            warn "Failed to copy file on '$hostname'.\n";
+            return 1;
+        }
     }
+
+    my ( $out, $pid ) = $ssh->pipe_out($command);
+    
+    if ($ssh->error) {
+        warn "Failed to open command pipe on '$hostname': ${\$ssh->error}.\n";
+        return 1;
+    }
+
+    if ($fork_num) { print "[$hostname] $_" while <$out> }
+    else           { print while <$out> }
     close $out;
 
     return;
 }
 
 sub fork_hosts {
-    my ( $hosts, $timestamp ) = @_;
+    my ( $hosts, $timestamp, $scp_file, $scp_target ) = @_;
 
     my $pm = Parallel::ForkManager->new($fork_num);
   HOSTS:
     for my $hostname (@{$hosts}) {
         $pm->start and next HOSTS;
 
-        run_command( $hostname, $timestamp );
+        run_command( $hostname, $timestamp, $scp_file, $scp_target );
 
         $pm->finish;
     }
     $pm->wait_all_children;
 
-    return ;
+    return;
+}
+
+sub copy_file {
+    my ( $file, $target, $ssh ) = @_;
+
+    if ( !-f $file ) {
+        warn "Cannot copy '$file', is not a file.\n";
+        return 1;
+    }
+
+    $ssh->scp_put( $file, $target );
+
+    if ( $ssh->error ) {
+        warn "Failed to copy file '$file': ${\$ssh->error}.\n";
+        return 1;
+    }
+
+    return;
 }
 
 sub process_host_list {
-    my ( $host_list, $timestamp ) = @_;
+    my ( $host_list, $timestamp, $scp_file, $scp_target ) = @_;
+
+    $timestamp = 0 if !$timestamp;
 
     $host_list      or die "Host list was not provided.\n";
     $command        or die "Command was not provided.\n";
@@ -587,11 +633,11 @@ sub process_host_list {
         elsif ($fork_num !~ /\d+/) {
             die "Fork argument '$fork_num' is invalid\n";
         }
-        fork_hosts(\@hosts, $timestamp);
+        fork_hosts( \@hosts, $timestamp, $scp_file, $scp_target );
     }
     else {
         for my $hostname (@hosts) {
-            run_command($hostname, $timestamp);
+            run_command( $hostname, $timestamp, $scp_file, $scp_target );
         }
     }
 
