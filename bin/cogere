@@ -59,11 +59,13 @@ if ( !@ARGV ) {
     exit;
 }
 
+my @target_hosts;
+
 my %args;
 GetOptions(
     'h|help'         => \$args{'help'},
     'f|config'       => \$args{'config'},
-    'l|host-list=s'  => \$args{'host-list'},
+    'l|host-list=s@' => \$args{'host-list'},
     'r|reason=s'     => \$args{'reason'},
     'rekey-hosts'    => \$args{'rekey-hosts'},
     'add-host'       => \$args{'add-host'},
@@ -71,7 +73,7 @@ GetOptions(
     'hostname=s'     => \$args{'hostname'},
     'ipaddr=s'       => \$args{'ipaddr'},
     'username=s'     => \$args{'username'},
-    'g|group=s'      => \$args{'group'},
+    'g|group=s@'     => \$args{'group'},
     'add-group'      => \$args{'add-group'},
     'del-group'      => \$args{'del-group'},
     'join-group'     => \$args{'join-group'},
@@ -147,13 +149,17 @@ elsif ( $args{'group'} ) {
 
 my $fork_num = $args{'fork'};
 
+if ($args{'host-list'}) {
+    @target_hosts = ( @target_hosts, @{$args{'host-list'}} );
+}
+
 if ( $args{'rekey-hosts'} ) {
-    process_rekey_host( $args{'host-list'} );
+    process_rekey_host(\@target_hosts);
     exit;
 }
 
-if ( $args{'host-list'} ) {
-    process_host_list( $args{'host-list'}, 0, $args{'scp-file'}, $args{'scp-target'} );
+if (@target_hosts) {
+    process_host_list( \@target_hosts, 0, $args{'scp-file'}, $args{'scp-target'} );
     exit;
 }
 else {
@@ -616,7 +622,7 @@ sub process_host_list {
     $command        or die "Command was not provided.\n";
     $args{'reason'} or die "Reason was not provided.\n";
 
-    my @dirty_hosts = split /,/, $host_list;
+    my @dirty_hosts = @{$host_list};
     my @hosts = uniq @dirty_hosts;
     validate_hosts(@hosts);
 
@@ -831,7 +837,7 @@ sub process_group {
     my ($group_list) = @_;
 
     $group_list or die "Groups were not provided.\n";
-    my @dirty_groups = split /,/, $group_list;
+    my @dirty_groups = @{$group_list};
     my @groups = uniq @dirty_groups;
 
     my @hosts;
@@ -840,7 +846,7 @@ sub process_group {
         push @hosts, @members;
     }
 
-    $args{'host-list'} = join ',', @hosts;
+    @target_hosts = ( @target_hosts, @hosts );
 
     return;
 }
@@ -854,7 +860,7 @@ sub process_all {
         push @hosts, $host;
     }
 
-    $args{'host-list'} = join ',', @hosts;
+    @target_hosts = ( @target_hosts, @hosts );
 
     return;
 }
