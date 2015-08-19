@@ -3,14 +3,14 @@ _cogere() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="-l --host-list --add-host --del-host --rekey-hosts -g --group 
-          --add-group --del-group --join-group --leave-group -h --help
+    opts="-h --host --add-host --del-host --rekey-hosts -g --group 
+          --add-group --del-group --join-group --leave-group --help
           -f --config --hostname --ipaddr --username -r --reason
           -a --all -H --list-hosts -G --list-groups -M --list-members
           -s --scp-file -t --scp-target"
 
     case "${prev}" in
-            -l|--host-list)
+            -h|--host)
                 local hosts=$(sudo /opt/sv/bin/cogere --list-hosts)
                 COMPREPLY=( $(compgen -W "${hosts}" -- ${cur}) )
                 return 0
