@@ -199,7 +199,7 @@ $ cogere --del-group --group moar-hosts
 
 Adds provided hosts to provided group
 
-**REQUIRES `--group|-g`, `--host-h`**
+**REQUIRES `--group|-g`, `--host|-h`**
 
 Example:
 ```
@@ -210,7 +210,7 @@ $ cogere --join-group --group moar-hosts --host cognitio
 
 Removes provided hosts to provided group
 
-**REQUIRES `--group|-g`, `--host|-n`**
+**REQUIRES `--group|-g`, `--host|-h`**
 
 Example:
 ```
