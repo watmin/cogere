@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.5.0
+#: Version : 1.5.1
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -167,6 +167,7 @@ if ( $args{'host'} ) {
 }
 
 process_negate();
+remove_default();
 
 if ( $args{'rekey-hosts'} ) {
     process_rekey_host( [@target_hosts] );
@@ -1027,3 +1028,8 @@ sub key_from_default {
     return;
 }
 
+sub remove_default {
+    @target_hosts = grep { $_ ne $default_key } @target_hosts;
+
+    return;
+}
