@@ -394,3 +394,4 @@ Here I used `sleep` to break up the command output to ensure the lines were sent
 - Optionally use DNS if `--ipaddr` not provided with `--add-host`
 - Add verbosity to commands with no output (Add/Del Host/Group)
 - Allow for scp to be performed with no command
+- Allow for multiple commands (Consider @ARGV as a command list)

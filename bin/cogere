@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.3.2
+#: Version : 1.3.3
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -59,8 +59,6 @@ if ( !@ARGV ) {
     exit;
 }
 
-my @target_hosts;
-
 my %args;
 GetOptions(
     'help'           => \$args{'help'},
@@ -87,7 +85,9 @@ GetOptions(
     't|scp-target=s' => \$args{'scp-target'},
 ) or die "Invalid arguments. See $0 --help\n";
 
-my $command = $ARGV[0];
+my @target_hosts;
+my $command  = $ARGV[0];
+my $fork_num = $args{'fork'};
 
 if ( $args{'config'} ) {
     set_globals( $args{'config'} );
@@ -147,19 +147,17 @@ elsif ( $args{'group'} ) {
     process_group( $args{'group'} );
 }
 
-my $fork_num = $args{'fork'};
-
 if ( $args{'host'} ) {
     @target_hosts = ( @target_hosts, @{ $args{'host'} } );
 }
 
 if ( $args{'rekey-hosts'} ) {
-    process_rekey_host( \@target_hosts );
+    process_rekey_host( [@target_hosts] );
     exit;
 }
 
 if (@target_hosts) {
-    process_host_list( \@target_hosts, 0, $args{'scp-file'}, $args{'scp-target'} );
+    process_host_list( [@target_hosts], 0, $args{'scp-file'}, $args{'scp-target'} );
     exit;
 }
 else {
@@ -818,8 +816,13 @@ sub process_join_group {
 
     for my $group (@groups) {
         my @members = get_members($group);
-        push @members, @hosts;
-        $yaml->[0]{'groups'}{$group} = \@members;
+
+        for my $host (@hosts) {
+            next if grep { $_ eq $host } @members;
+            push @members, $host;
+        }
+
+        $yaml->[0]{'groups'}{$group} = [@members];
     }
 
     $yaml->write($hosts_conf);
@@ -850,7 +853,7 @@ sub process_leave_group {
             @members = grep { $_ ne $host } @members;
         }
 
-        $yaml->[0]{'groups'}{$group} = \@members;
+        $yaml->[0]{'groups'}{$group} = [@members];
 
         delete $yaml->[0]{'groups'}{$group}
           if !scalar @{ $yaml->[0]{'groups'}{$group} };
