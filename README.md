@@ -153,7 +153,7 @@ cognitio.watministrator.net
 
 ###### --add-host
 
-Adds the supplied host to the hosts configuration. The command must be provided `--hostname` and `--ipaddr` containing the hostname and IP address of the node. Optionally takes a `--username`, the default username is cogere.
+Adds the supplied host to the hosts configuration. The command must be provided `--hostname` and `--ipaddr` containing the hostname and IP address of the node. Optionally takes a `--username`, the default username is cogere. You may also supply the `--default-key` switch if the remote host is already keyed. This will rekey the host and does not prompt for a password.
 
 **REQUIRES `--hostname`, `--ipaddr`**
 
