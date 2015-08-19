@@ -57,7 +57,7 @@ John Shields - SmartVault Corporation - 2015
 ```
 ### Example
 ```
-cogere -a -r 'report hostname' hostname
+$ cogere -a -r 'report hostname' hostname
 arbitrium.jar00n.net
 cognitio.watministrator.net
 
@@ -118,7 +118,7 @@ If ran with no other operations, it runs the supplied command on the host. Can b
 
 Example:
 ```
-cogere --reason 'report hostname' --host arbitrium --host cognitio 'hostname'
+$ cogere --reason 'report hostname' --host arbitrium --host cognitio 'hostname'
 arbitrium.jar00n.net
 cognitio.watministrator.net
 ```
@@ -133,7 +133,7 @@ If ran with no other operations, it runs the supplied command on the group. Can 
 
 Example:
 ```
-cogere --reason 'report hostname' --group testing 'hostname'
+$ cogere --reason 'report hostname' --group testing 'hostname'
 arbitrium.jar00n.net
 cognitio.watministrator.net
 ```
@@ -148,7 +148,7 @@ Adds the supplied host to the hosts configuration. The command must be provided 
 
 Example:
 ```
-cogere --add-host --hostname cognitio --ipaddr 172.16.0.6
+$ cogere --add-host --hostname cognitio --ipaddr 172.16.0.6
 /usr/bin/ssh-copy-id: INFO: attempting to log in with the new key(s), to filter out any that are already installed
 /usr/bin/ssh-copy-id: INFO: 1 key(s) remain to be installed -- if you are prompted now it is to install the new keys
 WARNING : Unauthorized access to this system is forbidden and will be
@@ -167,7 +167,7 @@ Deletes the supplied host from the local hosts configuration, removes the SSH ke
 
 Example:
 ```
-cogere --del-host --hostname cognitio
+$ cogere --del-host --hostname cognitio
 ```
 
 ###### --add-group
@@ -178,7 +178,7 @@ Creates a new group using the supplied group name, adding members to the group f
 
 Example:
 ```
-cogere --add-group --group moar-hosts --host arbitrium
+$ cogere --add-group --group moar-hosts --host arbitrium
 ```
 ###### --del-group
 
@@ -188,7 +188,7 @@ Deletes supplied group. Does not delete host entries.
 
 Example:
 ```
-cogere --del-group --group moar-hosts
+$ cogere --del-group --group moar-hosts
 ```
 
 ###### --join-group
@@ -199,7 +199,7 @@ Adds provided hosts to provided group
 
 Example:
 ```
-cogere --join-group --group moar-hosts --host cognitio
+$ cogere --join-group --group moar-hosts --host cognitio
 ```
 
 ###### --leave-group
@@ -210,7 +210,7 @@ Removes provided hosts to provided group
 
 Example:
 ```
-cogere --leave-group --group moar-hosts --host arbitrium
+$ cogere --leave-group --group moar-hosts --host arbitrium
 ```
 
 ##### Options
@@ -245,7 +245,8 @@ When forking is used, all lines are prefixed with the hostname the line came fro
 
 Example:
 ```
-cogere -r 'forking' -a -F a 'for i in {0..5}; do sleep $(( $RANDOM % 3 )); echo $i; done'
+$ cogere -r 'forking' -a -F a\
+  'for i in {0..5}; do sleep $(( $RANDOM % 3 )); echo $i; done'
 [arbitrium] 0
 [cognitio] 0
 [cognitio] 1
@@ -264,14 +265,14 @@ cogere -r 'forking' -a -F a 'for i in {0..5}; do sleep $(( $RANDOM % 3 )); echo 
 
 Performs an scp on file to target directory on remote host.
 
-**REQUIRES --scp-target|-s, --scp-target|-t**
+**REQUIRES `--scp-target|-s`, `--scp-target|-t`**
 
 Example:
 ```
-cat << EOF > /tmp/bash-me                                                                                                   
+$ cat << EOF > /tmp/bash-me
 head -n2 /etc/hosts
 EOF
-cogere -r 'scp testing' -a --scp-file /tmp/bash-me --scp-target /tmp \
+$ cogere -r 'scp testing' -a --scp-file /tmp/bash-me --scp-target /tmp \
   'hostname; bash /tmp/bash-me; rm -f /tmp/bash-me; echo'
 arbitrium.jar00n.net
 127.0.0.1	localhost
@@ -289,7 +290,7 @@ Lists all defined hosts.
 
 Example:
 ```
-cogere --list-hosts
+$ cogere --list-hosts
 arbitrium
 cognitio
 ```
@@ -300,7 +301,7 @@ Lists all defined groups and their members.
 
 Example:
 ```
-cogere --list-groups
+$ cogere --list-groups
 moar-hosts - cognitio
 testing - arbitrium
 ```
@@ -313,7 +314,7 @@ Lists members of supplied group
 
 Example:
 ```
-cogere --list-members --group testing
+$ cogere --list-members --group testing
 testing - arbitrium
 ```
 
@@ -327,7 +328,7 @@ You can supply heredocs as the command if they properly shell escaped.
 
 Example:
 ```
-cogere -r 'heredoc demo' -a 'perl <<'\''EOF'\'
+$ cogere -r 'heredoc demo' -a 'perl <<'\''EOF'\'
 use strict;
 use warnings;
 
@@ -356,7 +357,7 @@ It is important to note that output lines are only sent back when the remote sid
 
 Example:
 ```
-cogere -r 'stdout forking' -a -F a 'head -n3 /etc/hosts'
+$ cogere -r 'stdout forking' -a -F a 'head -n3 /etc/hosts'
 [arbitrium] 127.0.0.1	localhost
 [arbitrium] 127.0.1.1	arbitrium.jar00n.net	arbitrium
 [arbitrium] 
@@ -369,7 +370,7 @@ However, if the output is flushed on each line, then the output will be printed 
 
 Example:
 ```
-cogere -r 'stdout forking' -a -F a 'while read line; do echo "$line"; sleep 1; done < <(head -n3 /etc/hosts)'
+$ cogere -r 'stdout forking' -a -F a 'while read line; do echo "$line"; sleep 1; done < <(head -n3 /etc/hosts)'
 [arbitrium] 127.0.0.1	localhost
 [cognitio] 127.0.0.1	localhost
 [arbitrium] 127.0.1.1	arbitrium.jar00n.net	arbitrium
