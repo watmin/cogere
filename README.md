@@ -249,7 +249,7 @@ When forking is used, all lines are prefixed with the hostname the line came fro
 
 Example:
 ```
-$ cogere -r 'forking' -a -F a\
+$ cogere -r 'forking' -a -F a \
   'for i in {0..5}; do sleep $(( $RANDOM % 3 )); echo $i; done'
 [arbitrium] 0
 [cognitio] 0
@@ -374,7 +374,7 @@ However, if the output is flushed on each line, then the output will be printed 
 
 Example:
 ```
-$ cogere -r 'stdout forking' -a -F a\
+$ cogere -r 'stdout forking' -a -F a \
   'while read line; do echo "$line"; sleep 1; done < <(head -n3 /etc/hosts)'
 [arbitrium] 127.0.0.1	localhost
 [cognitio] 127.0.0.1	localhost
