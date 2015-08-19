@@ -15,6 +15,8 @@ Operations:
                     Requires -r|--reason
   --add-host      Creates new host entry and keys remote host.
                     Requires --hostname, --ipaddr. Optionally --username
+                    Optionally can use --default-key to connect using
+                    default SSH key rather than password authentication
   --del-host      Removes host entry and remove key from remote host
                     Requires --hostname
   --rekey-hosts   Creates new SSH key, removes old SSH key and installs
@@ -53,6 +55,10 @@ Options:
                         Requires -t|--scp-target
   -t|--scp-target     Performs an scp to target remote directory
                         Requires -s|--scp-file
+  --default-key       Uses the default SSH key rather than password
+                        when adding host
+  --new-default       Create a new default SSH key
+  --show-default      Prints the default public key
 
 Notes:
   Host and group negation:
@@ -151,7 +157,7 @@ Adds the supplied host to the hosts configuration. The command must be provided 
 
 **REQUIRES `--hostname`, `--ipaddr`**
 
-**OPTIONAL `--username`**
+**OPTIONAL `--username`,`--default-key`**
 
 Example:
 ```
@@ -291,6 +297,37 @@ cognitio.watministrator.net
 
 ```
 
+###### --new-default
+
+Creates a new default key, overwriting a previous one if it exists
+
+Example:
+
+```
+$ cogere --new-default
+```
+
+###### --show-default
+
+Prints the default public key
+
+Example:
+
+```
+$ cogere --show-default
+ssh-rsa [shortened-key] [remote-id]
+```
+
+###### --default-key
+
+Uses the default SSH key when adding a host, requires the that public key is already on the remote host. Intended for use with Puppet, Chef, Salt, etc.
+
+Example:
+
+```
+$ cogere --add-host --hostname cognitio --ipaddr 172.16.0.6 --default-key
+```
+
 ###### --list-hosts | -H
 
 Lists all defined hosts.
@@ -406,9 +443,9 @@ Here I supplied `-a` to build a list of all known hosts and then used `-g :group
 
 ### To do's
 - Allow for host removal of unreachable hosts
-- Allow for use of preexisting key in `--add-host` (Allows for automated deploy hosts to be already keyed, will rekey on add)
 - Allow for hosts to added to groups on creation
 - Optionally use DNS if `--ipaddr` not provided with `--add-host`
 - Add verbosity to commands with no output (Add/Del Host/Group)
 - Allow for scp to be performed with no command
 - Allow for multiple commands (Consider @ARGV as a command list)
+- Improve error handling with respect to the configuration files and keys

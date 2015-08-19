@@ -40,6 +40,7 @@ use YAML::Tiny;
 use List::MoreUtils qw/uniq/;
 use POSIX qw/strftime/;
 use Parallel::ForkManager;
+use File::Copy qw/copy/;
 
 die "Not being ran from sudo!\n" if !$ENV{'SUDO_USER'};
 
@@ -126,7 +127,7 @@ if ( $args{'show-default'} ) {
 }
 
 if ( $args{'add-host'} ) {
-    process_add_host( $args{'hostname'}, $args{'ipaddr'}, $args{'username'} );
+    process_add_host( $args{'hostname'}, $args{'ipaddr'}, $args{'username'}, $args{'default-key'} );
     exit;
 }
 if ( $args{'del-host'} ) {
@@ -676,7 +677,7 @@ sub process_host_list {
 }
 
 sub process_add_host {
-    my ( $hostname, $ipaddr, $user ) = @_;
+    my ( $hostname, $ipaddr, $user, $default ) = @_;
 
     $hostname or die "Failed to provide hostname.\n";
     $ipaddr   or die "Failed to provide IP address.\n";
@@ -686,10 +687,16 @@ sub process_add_host {
 
     $log{'message'} = "Adding host '$hostname'";
 
-    my ( $password, $remoteid ) = gen_key($hostname);
-    copy_key( $hostname, $user, $ipaddr );
-
-    add_hosts_conf( $hostname, $user, $ipaddr, $password, $remoteid );
+    if ( !$default ) {
+        my ( $password, $remoteid ) = gen_key($hostname);
+        copy_key( $hostname, $user, $ipaddr );
+        add_hosts_conf( $hostname, $user, $ipaddr, $password, $remoteid );
+    }
+    else {
+        my %def = get_params($default_key);
+        add_hosts_conf( $hostname, $user, $ipaddr, $def{'password'}, $def{'remoteid'} );
+        key_from_default($hostname);
+    }
 
     return;
 }
@@ -957,7 +964,7 @@ sub process_negate {
 }
 
 sub process_show_default {
-    if (!-f "$keys_dir/$default_key" or !-f "$keys_dir/$default_key.pub") {
+    if ( !-f "$keys_dir/$default_key" or !-f "$keys_dir/$default_key.pub" ) {
         die "No default key found\n";
     }
 
@@ -970,12 +977,12 @@ sub process_show_default {
 }
 
 sub process_new_default {
-    if (-f "$keys_dir/$default_key") {
+    if ( -f "$keys_dir/$default_key" ) {
         unlink "$keys_dir/$default_key"
           or die "Failed to remote default private key: $!\n";
     }
 
-    if (-f "$keys_dir/$default_key.pub") {
+    if ( -f "$keys_dir/$default_key.pub" ) {
         unlink "$keys_dir/$default_key.pub"
           or die "Failed to remove default public key: $!\n";
     }
@@ -985,3 +992,38 @@ sub process_new_default {
 
     return;
 }
+
+sub copy_default_key {
+    my ($hostname) = @_;
+
+    copy "$keys_dir/$default_key", "$keys_dir/$hostname"
+      or die "Failed to copy default private key: $!\n";
+
+    copy "$keys_dir/$default_key.pub", "$keys_dir/$hostname.pub"
+      or die "Failed to copy default public key: $!\n";
+
+    chmod 0600, "$keys_dir/$hostname", "$keys_dir/$hostname.pub"
+      or die "Failed to correct permissions on '$keys_dir/$hostname', '$keys_dir/$hostname.pub': $!.\n";
+
+    return;
+}
+
+sub key_from_default {
+    my ($hostname) = @_;
+
+    my %params = get_params($hostname);
+    my %def    = get_params($default_key);
+
+    copy_default_key($hostname);
+    my $timestamp = backup_key($hostname);
+    my ( $password, $remoteid ) = gen_key($hostname);
+    add_remote_key($hostname);
+    process_host_list( [$hostname], $timestamp );
+    del_hosts_conf( $hostname, $timestamp );
+    add_hosts_conf( $hostname, $params{'username'}, $params{'ipaddr'}, $password, $remoteid );
+    del_remote_key( $hostname, $def{'remoteid'} );
+    process_host_list( [$hostname] );
+
+    return;
+}
+
