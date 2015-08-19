@@ -5,30 +5,30 @@ Broadcast commands to remote hosts via SSH
 ```
 cogere -- verb: to collect/gather, to compel/force
 
-Usage: cogere --reason 'report hostname' --host-list host1,host2 'hostname'
+Usage: cogere --reason 'report hostname' --host host1 --host host2 'hostname'
 
 Operations:
-  -l|--host-list  Comma separated hostname list, command is executed on hosts
-                    if no other operations provided.
-                    Requires --reason
+  -h|--host       Host to connect to, can be provided multiple times. Command
+                    is executed on hosts if no other operations provided.
+                    Requires -r|--reason
   --add-host      Creates new host entry and keys remote host.
                     Requires --hostname, --ipaddr. Optionally --username
   --del-host      Removes host entry and remove key from remote host
                     Requires --hostname
   --rekey-hosts   Creates new SSH key, removes old SSH key and installs
                     new SSH key on remote host.
-                    Requires --host-list
-  -g|--group      Comma separated group list, command is executed on groups
-                    if no other operations provided.
-                    Requires --reason
+                    Requires -h|--host
+  -g|--group      Group to connect to, can be provided multiple times. Command
+                    is executed on groups if no other operations provided.
+                    Requires -r|--reason
   --add-group     Creates new group of hosts.
-                    Requires --group, --host-list
+                    Requires -g|--group, -h|--host
   --del-group     Delete group.
-                    Requires --group
+                    Requires -g|--group
   --join-group    Adds hosts to an existing group.
-                    Requires --group, --host-list
+                    Requires -g|--group, -h|--host
   --leave-group   Remove hosts from an existing group.
-                    Requires --group, --host-list
+                    Requires -g|--group, -h|--host
 
 Options:
   -h|--help           Shows this output
@@ -46,9 +46,14 @@ Options:
   -H|--list-hosts     Displays all defined hosts
   -G|--list-groups    Displays all defined groups
   -M|--list-members   Displays all hosts within group
-                        Requires --group
+                        Requires -g|--group
+  -s|--scp-file       Performs an scp on local file
+                        Requires -t|--scp-target
+  -t|--scp-target     Performs an scp to target remote directory
+                        Requires -s|--scp-file
 
 John Shields - SmartVault Corporation - 2015
+
 ```
 ### Example
 ```
@@ -90,6 +95,11 @@ Example alias definition:
 alias cogere='sudo /opt/sv/bin/cogere'
 ```
 
+##### bash completion
+
+Adding `source /opt/sv/etc/bash_completion.d/cogere` to your profile will allow you to tab complete groups and hosts.
+
+
 ### Documentation
 
 #### Operations
@@ -98,17 +108,17 @@ Operations perform a given operation on a set of supplied parameters from the op
 
 **Don't supply multiple operations.**
 
-###### --host-list | -l
+###### --host | -h
 
-The `--host-list` switch is both an operation and an option. When using another operation it provides the list of hosts to the operation.
+The `--host` switch is both an operation and an option. When using another operation it provides the list of hosts to the operation.
 
-If ran with no other operations, it runs the supplied command on the host. Can supply multiple hosts comma separated
+If ran with no other operations, it runs the supplied command on the host. Can be used multiple times
 
 **REQUIRES `--reason|-r`, `command`**
 
 Example:
 ```
-cogere --reason 'report hostname' --host-list arbitrium,cognitio 'hostname'
+cogere --reason 'report hostname' --host arbitrium --host cognitio 'hostname'
 arbitrium.jar00n.net
 cognitio.watministrator.net
 ```
@@ -164,11 +174,11 @@ cogere --del-host --hostname cognitio
 
 Creates a new group using the supplied group name, adding members to the group from the provided host list
 
-**REQUIRES `--group|-g`, `--host-list`**
+**REQUIRES `--group|-g`, `--host|-h`**
 
 Example:
 ```
-cogere --add-group --group moar-hosts --host-list arbitrium
+cogere --add-group --group moar-hosts --host arbitrium
 ```
 ###### --del-group
 
@@ -185,22 +195,22 @@ cogere --del-group --group moar-hosts
 
 Adds provided hosts to provided group
 
-**REQUIRES `--group|-g`, `--host-list|-l`**
+**REQUIRES `--group|-g`, `--host-h`**
 
 Example:
 ```
-cogere --join-group --group moar-hosts --host-list cognitio
+cogere --join-group --group moar-hosts --host cognitio
 ```
 
 ###### --leave-group
 
 Removes provided hosts to provided group
 
-**REQUIRES `--group|-g`, `--host-list|-l`**
+**REQUIRES `--group|-g`, `--host|-n`**
 
 Example:
 ```
-cogere --leave-group --group moar-hosts --host-list arbitrium
+cogere --leave-group --group moar-hosts --host arbitrium
 ```
 
 ##### Options
@@ -221,11 +231,11 @@ Provides IP address variable to `--add-host` or `--del-host`
 
 ###### --reason | -r
 
-Provides a reason as to why you are doing what you are doing on the host-list or group
+Provides a reason as to why you are doing what you are doing on the host(s) or group(s)
 
 ###### --all | -a
 
-Builds a `--host-list` of all defined hosts.
+Builds a host list of all defined hosts.
 
 ###### --fork | -F
 
@@ -248,6 +258,28 @@ cogere -r 'forking' -a -F a 'for i in {0..5}; do sleep $(( $RANDOM % 3 )); echo 
 [arbitrium] 3
 [arbitrium] 4
 [arbitrium] 5
+```
+
+###### --scp-file | -s , --scp-target | -t
+
+Performs an scp on file to target directory on remote host.
+
+**REQUIRES --scp-target|-s, --scp-target|-t**
+
+Example:
+```
+cat << EOF > /tmp/bash-me                                                                                                   
+head -n2 /etc/hosts
+EOF
+cogere -r 'scp testing' -a --scp-file /tmp/bash-me --scp-target /tmp \
+  'hostname; bash /tmp/bash-me; rm -f /tmp/bash-me; echo'
+arbitrium.jar00n.net
+127.0.0.1	localhost
+127.0.1.1	arbitrium.jar00n.net	arbitrium
+
+cognitio.watministrator.net
+127.0.0.1	localhost
+127.0.1.1	cognitio.watministrator.net cognitio
 
 ```
 
@@ -350,10 +382,9 @@ Here I used `sleep` to break up the command output to ensure the lines were sent
 
 ### To do's
 - Allow for hostname negation
-- Replace comma separated hosts/groups with multiple `-l/g` switches (Allows for tab completion)
 - Allow for host removal of unreachable hosts
 - Allow for use of preexisting key in `--add-host` (Allows for automated deploy hosts to be already keyed, will rekey on add)
 - Allow for hosts to added to groups on creation
 - Optionally use DNS if `--ipaddr` not provided with `--add-host`
-- Build tab completion file
 - Add verbosity to commands with no output (Add/Del Host/Group)
+- Allow for scp to be performed with no command

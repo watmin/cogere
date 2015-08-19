@@ -1,9 +1,9 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.3.1
+#: Version : 1.3.2
 #: Path    : /opt/sv/bin/cogere
-#: Params  : see --help|-h
+#: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
 #: License :
 # Copyright (c) 2015 SmartVault, Inc.
@@ -63,9 +63,9 @@ my @target_hosts;
 
 my %args;
 GetOptions(
-    'h|help'         => \$args{'help'},
+    'help'           => \$args{'help'},
     'f|config'       => \$args{'config'},
-    'l|host=s@'      => \$args{'host'},
+    'h|host=s@'      => \$args{'host'},
     'r|reason=s'     => \$args{'reason'},
     'rekey-hosts'    => \$args{'rekey-hosts'},
     'add-host'       => \$args{'add-host'},
@@ -85,7 +85,7 @@ GetOptions(
     'F|fork=s'       => \$args{'fork'},
     's|scp-file=s'   => \$args{'scp-file'},
     't|scp-target=s' => \$args{'scp-target'},
-) or die "Invalid arguments. See $0 -h\n";
+) or die "Invalid arguments. See $0 --help\n";
 
 my $command = $ARGV[0];
 
@@ -173,7 +173,7 @@ cogere -- verb: to collect/gather, to compel/force
 Usage: cogere --reason 'report hostname' --host host1 --host host2 'hostname'
 
 Operations:
-  -l|--host       Host to connect to, can be provided multiple times. Command
+  -h|--host       Host to connect to, can be provided multiple times. Command
                     is executed on hosts if no other operations provided.
                     Requires -r|--reason
   --add-host      Creates new host entry and keys remote host.
@@ -182,7 +182,7 @@ Operations:
                     Requires --hostname
   --rekey-hosts   Creates new SSH key, removes old SSH key and installs
                     new SSH key on remote host.
-                    Requires -l|--host
+                    Requires -h|--host
   -g|--group      Group to connect to, can be provided multiple times. Command
                     is executed on groups if no other operations provided.
                     Requires -r|--reason
@@ -191,12 +191,12 @@ Operations:
   --del-group     Delete group.
                     Requires -g|--group
   --join-group    Adds hosts to an existing group.
-                    Requires -g|--group, -l|--host
+                    Requires -g|--group, -h|--host
   --leave-group   Remove hosts from an existing group.
-                    Requires -g|--group, -l|--host
+                    Requires -g|--group, -h|--host
 
 Options:
-  -h|--help           Shows this output
+  --help              Shows this output
   -f|--config         Alternate configuration file
   --hostname          Hostname to be provided to --add-host or --del-host
   --ipaddr            IP address to be provided to --add-host
