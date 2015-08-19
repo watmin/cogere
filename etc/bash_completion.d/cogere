@@ -1,5 +1,6 @@
 _cogere() {
     local cur prev opts
+    COMP_WORDBREAKS=${COMP_WORDBREAKS//:}
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
@@ -11,12 +12,12 @@ _cogere() {
 
     case "${prev}" in
             -h|--host)
-                local hosts=$(sudo /opt/sv/bin/cogere --list-hosts)
+                local hosts=$(sudo /opt/sv/bin/cogere --list-hosts | perl -pe 's/(.*)/$1\n:$1/')
                 COMPREPLY=( $(compgen -W "${hosts}" -- ${cur}) )
                 return 0
                 ;;
             -g|--group)
-                local groups=$(sudo /opt/sv/bin/cogere --list-groups | awk '{print $1}')
+                local groups=$(sudo /opt/sv/bin/cogere --list-groups | awk '{print $1}' | perl -pe 's/(.*)/$1\n:$1/')
                 COMPREPLY=( $(compgen -W "${groups}" -- ${cur}) )
                 return 0
     esac
