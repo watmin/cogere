@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.3.0
+#: Version : 1.3.1
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help|-h
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -707,7 +707,7 @@ sub process_rekey_host {
         del_hosts_conf( $hostname, $timestamp );
         add_hosts_conf( $hostname, $params{'username'}, $params{'ipaddr'}, $password, $remoteid );
         del_remote_key( $hostname, $params{'remoteid'} );
-        process_host_list([$hostname]);
+        process_host_list( [$hostname] );
     }
 
     return;
