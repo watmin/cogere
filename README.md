@@ -33,7 +33,7 @@ Operations:
                     Requires -g|--group, -h|--host
 
 Options:
-  -h|--help           Shows this output
+  --help              Shows this output
   -f|--config         Alternate configuration file
   --hostname          Hostname to be provided to --add-host or --del-host
   --ipaddr            IP address to be provided to --add-host
@@ -54,8 +54,11 @@ Options:
   -t|--scp-target     Performs an scp to target remote directory
                         Requires -s|--scp-file
 
-John Shields - SmartVault Corporation - 2015
+Notes:
+  Host and group negation:
+    Hosts and groups can be negated by prefixing them with ':'
 
+John Shields - SmartVault Corporation - 2015
 ```
 
 ### Example
