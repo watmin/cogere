@@ -1,7 +1,9 @@
 # cogere
+
 Broadcast commands to remote hosts via SSH
 
 # Usage
+
 ```
 cogere -- verb: to collect/gather, to compel/force
 
@@ -55,13 +57,16 @@ Options:
 John Shields - SmartVault Corporation - 2015
 
 ```
+
 ### Example
+
 ```
 $ cogere -a -r 'report hostname' hostname
 arbitrium.jar00n.net
 cognitio.watministrator.net
 
 ```
+
 ### Installation
 
 `cogere` expects to be installed within the directory `/opt/sv`. The files in `bin`, `cogere` and `lib` are built with the assumed relative path of `/opt/sv`. If you install this tool into another directory you will either need to update the default directory variable within `bin/cogere` or always supply the `--config|-f` switch to load the alternate configuration.
@@ -98,7 +103,6 @@ alias cogere='sudo /opt/sv/bin/cogere'
 ##### bash completion
 
 Adding `source /opt/sv/etc/bash_completion.d/cogere` to your profile will allow you to tab complete groups and hosts.
-
 
 ### Documentation
 
@@ -370,7 +374,8 @@ However, if the output is flushed on each line, then the output will be printed 
 
 Example:
 ```
-$ cogere -r 'stdout forking' -a -F a 'while read line; do echo "$line"; sleep 1; done < <(head -n3 /etc/hosts)'
+$ cogere -r 'stdout forking' -a -F a\
+  'while read line; do echo "$line"; sleep 1; done < <(head -n3 /etc/hosts)'
 [arbitrium] 127.0.0.1	localhost
 [cognitio] 127.0.0.1	localhost
 [arbitrium] 127.0.1.1	arbitrium.jar00n.net	arbitrium
