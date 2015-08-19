@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.4.1
+#: Version : 1.5.0
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -51,7 +51,7 @@ my $base_dir     = $def_base_dir;
 my $def_config   = "$base_dir/conf/cogere.conf";
 my (
     $hosts_conf, $keys_dir, $genpass,  $ssh_keygen, $ssh_copy_id, $username, $log_type,
-    $logstash,   $log_file, $log_host, $log_port,   $log_proto,   $log_name
+    $logstash,   $log_file, $log_host, $log_port,   $log_proto,   $log_name, $default_key,
 );
 
 if ( !@ARGV ) {
@@ -83,6 +83,9 @@ GetOptions(
     'F|fork=s'       => \$args{'fork'},
     's|scp-file=s'   => \$args{'scp-file'},
     't|scp-target=s' => \$args{'scp-target'},
+    '--default-key'  => \$args{'default-key'},
+    '--new-default'  => \$args{'new-default'},
+    '--show-default' => \$args{'show-default'},
 ) or die "Invalid arguments. See $0 --help\n";
 
 my @target_hosts;
@@ -103,41 +106,52 @@ if ( $args{'help'} ) {
     help();
     exit;
 }
-elsif ( $args{'list-hosts'} ) {
+
+if ( $args{'list-hosts'} ) {
     process_list_hosts();
     exit;
 }
-elsif ( $args{'list-groups'} ) {
+if ( $args{'list-groups'} ) {
     process_list_groups();
     exit;
 }
-elsif ( $args{'list-members'} ) {
+if ( $args{'list-members'} ) {
     process_list_members( $args{'group'} );
     exit;
 }
 
+if ( $args{'show-default'} ) {
+    process_show_default();
+    exit;
+}
+
+if ( $args{'add-host'} ) {
+    process_add_host( $args{'hostname'}, $args{'ipaddr'}, $args{'username'} );
+    exit;
+}
 if ( $args{'del-host'} ) {
     process_del_host( $args{'hostname'} );
     exit;
 }
-elsif ( $args{'add-host'} ) {
-    process_add_host( $args{'hostname'}, $args{'ipaddr'}, $args{'username'} );
-    exit;
-}
-elsif ( $args{'add-group'} ) {
+if ( $args{'add-group'} ) {
     process_add_group( $args{'group'}, $args{'host'} );
     exit;
 }
-elsif ( $args{'del-group'} ) {
+if ( $args{'del-group'} ) {
     process_del_group( $args{'group'} );
     exit;
 }
-elsif ( $args{'join-group'} ) {
+if ( $args{'join-group'} ) {
     process_join_group( $args{'group'}, $args{'host'} );
     exit;
 }
-elsif ( $args{'leave-group'} ) {
+if ( $args{'leave-group'} ) {
     process_leave_group( $args{'group'}, $args{'host'} );
+    exit;
+}
+
+if ( $args{'new-default'} ) {
+    process_new_default();
     exit;
 }
 
@@ -178,6 +192,8 @@ Operations:
                     Requires -r|--reason
   --add-host      Creates new host entry and keys remote host.
                     Requires --hostname, --ipaddr. Optionally --username
+                    Optionally can use --default-key to connect using
+                    default SSH key rather than password authentication
   --del-host      Removes host entry and remove key from remote host
                     Requires --hostname
   --rekey-hosts   Creates new SSH key, removes old SSH key and installs
@@ -216,6 +232,10 @@ Options:
                         Requires -t|--scp-target
   -t|--scp-target     Performs an scp to target remote directory
                         Requires -s|--scp-file
+  --default-key       Uses the default SSH key rather than password
+                        when adding host
+  --new-default       Create a new default SSH key
+  --show-default      Prints the default public key
 
 Notes:
   Host and group negation:
@@ -248,6 +268,7 @@ sub set_globals {
             case /^log_proto$/   { $log_proto   = $val }
             case /^log_name$/    { $log_name    = $val }
             case /^log_file$/    { $log_file    = $val }
+            case /^default_key$/ { $default_key = $val }
             else                 { warn "'$var' not recognized configuration parameter.\n" }
         }
     }
@@ -931,6 +952,36 @@ sub process_negate {
     for my $host (@negate_hosts) {
         @target_hosts = grep { $_ ne $host } @target_hosts;
     }
+
+    return;
+}
+
+sub process_show_default {
+    if (!-f "$keys_dir/$default_key" or !-f "$keys_dir/$default_key.pub") {
+        die "No default key found\n";
+    }
+
+    open my $key_h, '<', "$keys_dir/$default_key.pub"
+      or die "Failed to open '$keys_dir/$default_key.pub': $!\n";
+    print while <$key_h>;
+    close $key_h;
+
+    return;
+}
+
+sub process_new_default {
+    if (-f "$keys_dir/$default_key") {
+        unlink "$keys_dir/$default_key"
+          or die "Failed to remote default private key: $!\n";
+    }
+
+    if (-f "$keys_dir/$default_key.pub") {
+        unlink "$keys_dir/$default_key.pub"
+          or die "Failed to remove default public key: $!\n";
+    }
+
+    my ( $password, $remoteid ) = gen_key($default_key);
+    add_hosts_conf( $default_key, 'default', '0.0.0.0', $password, $remoteid );
 
     return;
 }
