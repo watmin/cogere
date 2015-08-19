@@ -626,7 +626,7 @@ sub process_host_list {
     my @hosts       = uniq @dirty_hosts;
     validate_hosts(@hosts);
 
-    $log{'hosts'}   = \@hosts;
+    $log{'hosts'}   = [@hosts];
     $log{'command'} = $command;
     $log{'message'} = $args{'reason'} unless defined $log{'message'};
 
@@ -639,7 +639,7 @@ sub process_host_list {
         elsif ( $fork_num !~ /\d+/ ) {
             die "Fork argument '$fork_num' is invalid\n";
         }
-        fork_hosts( \@hosts, $timestamp, $scp_file, $scp_target );
+        fork_hosts( [@hosts], $timestamp, $scp_file, $scp_target );
     }
     else {
         for my $hostname (@hosts) {
@@ -689,8 +689,10 @@ sub process_del_host {
 sub process_rekey_host {
     my ($host_list) = @_;
 
-    my @dirty_hosts = split /,/, $host_list;
-    my @hosts = uniq @dirty_hosts;
+    my @dirty_hosts = @{$host_list};
+    my @hosts       = uniq @dirty_hosts;
+    validate_hosts(@hosts);
+
     for my $hostname (@hosts) {
         get_host($hostname) or die "Hostname '$hostname' not defined,\n";
 
@@ -701,11 +703,11 @@ sub process_rekey_host {
         my $timestamp = backup_key($hostname);
         my ( $password, $remoteid ) = gen_key($hostname);
         add_remote_key($hostname);
-        process_host_list( $hostname, $timestamp );
+        process_host_list( [$hostname], $timestamp );
         del_hosts_conf( $hostname, $timestamp );
         add_hosts_conf( $hostname, $params{'username'}, $params{'ipaddr'}, $password, $remoteid );
         del_remote_key( $hostname, $params{'remoteid'} );
-        process_host_list($hostname);
+        process_host_list([$hostname]);
     }
 
     return;
@@ -754,17 +756,23 @@ sub process_add_group {
     $group     or die "Group was not provided.\n";
     $host_list or die "Failed to provided host list.\n";
 
-    my $yaml = get_yaml();
-
-    if ( exists $yaml->[0]{'groups'}{$group} ) {
-        die "Group '$group' exists, cannot recreate. Join or delete '$group'.\n";
-    }
-
-    my @dirty_hosts = split /,/, $host_list;
-    my @hosts = uniq @dirty_hosts;
+    my @dirty_groups = @{$group};
+    my @groups       = uniq @dirty_groups;
+    my @dirty_hosts  = @{$host_list};
+    my @hosts        = uniq @dirty_hosts;
     validate_hosts(@hosts);
 
-    $yaml->[0]{'groups'}{$group} = \@hosts;
+    my $yaml = get_yaml();
+
+    for my $group (@groups) {
+        if ( exists $yaml->[0]{'groups'}{$group} ) {
+            warn "Group '$group' exists, cannot recreate. Join or delete '$group'.\n";
+            next;
+        }
+
+        $yaml->[0]{'groups'}{$group} = [@hosts];
+    }
+
     $yaml->write($hosts_conf);
 
     return;
@@ -774,13 +782,19 @@ sub process_del_group {
     my ($group) = @_;
 
     $group or die "Group was not provided.\n";
+    my @dirty_groups = @{$group};
+    my @groups       = uniq @dirty_groups;
 
     my $yaml = get_yaml();
-    if ( !exists $yaml->[0]{'groups'}{$group} ) {
-        die "Group '$group' does not exist, cannot delete.\n";
+
+    for my $group (@groups) {
+        if ( !exists $yaml->[0]{'groups'}{$group} ) {
+            warn "Group '$group' does not exist, cannot delete.\n";
+        }
+
+        delete $yaml->[0]{'groups'}{$group};
     }
 
-    delete $yaml->[0]{'groups'}{$group};
     $yaml->write($hosts_conf);
 
     return;
@@ -791,17 +805,23 @@ sub process_join_group {
 
     $group     or die "Group was not provided.\n";
     $host_list or die "Host list was not provided.\n";
-    my @dirty_hosts = split /,/, $host_list;
-    my @hosts = uniq @dirty_hosts;
 
-    validate_groups($group);
+    my @dirty_groups = @{$group};
+    my @groups       = uniq @dirty_groups;
+    my @dirty_hosts  = @{$host_list};
+    my @hosts        = uniq @dirty_hosts;
+
+    validate_groups(@groups);
     validate_hosts(@hosts);
 
-    my @members = get_members($group);
-    push @members, @hosts;
-
     my $yaml = get_yaml();
-    $yaml->[0]{'groups'}{$group} = \@members;
+
+    for my $group (@groups) {
+        my @members = get_members($group);
+        push @members, @hosts;
+        $yaml->[0]{'groups'}{$group} = \@members;
+    }
+
     $yaml->write($hosts_conf);
 
     return;
@@ -812,22 +832,30 @@ sub process_leave_group {
 
     $group     or die "Group was not provided.\n";
     $host_list or die "Host list was not provided.\n";
-    my @dirty_hosts = split /,/, $host_list;
-    my @hosts = uniq @dirty_hosts;
 
-    validate_groups($group);
+    my @dirty_groups = @{$group};
+    my @groups       = uniq @dirty_groups;
+    my @dirty_hosts  = @{$host_list};
+    my @hosts        = uniq @dirty_hosts;
+
+    validate_groups(@groups);
     validate_hosts(@hosts);
 
-    my @members = get_members($group);
+    my $yaml = get_yaml();
 
-    for my $host (@hosts) {
-        @members = grep { $_ ne $host } @members;
+    for my $group (@groups) {
+        my @members = get_members($group);
+
+        for my $host (@hosts) {
+            @members = grep { $_ ne $host } @members;
+        }
+
+        $yaml->[0]{'groups'}{$group} = \@members;
+
+        delete $yaml->[0]{'groups'}{$group}
+          if !scalar @{ $yaml->[0]{'groups'}{$group} };
     }
 
-    my $yaml = get_yaml();
-    $yaml->[0]{'groups'}{$group} = \@members;
-    delete $yaml->[0]{'groups'}{$group}
-      if !scalar @{ $yaml->[0]{'groups'}{$group} };
     $yaml->write($hosts_conf);
 
     return;
@@ -864,3 +892,4 @@ sub process_all {
 
     return;
 }
+

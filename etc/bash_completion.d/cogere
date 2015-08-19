@@ -6,7 +6,8 @@ _cogere() {
     opts="-l --host-list --add-host --del-host --rekey-hosts -g --group 
           --add-group --del-group --join-group --leave-group -h --help
           -f --config --hostname --ipaddr --username -r --reason
-          -a --all --lh --list-hosts --lg --list-groups --lm --list-members"
+          -a --all -H --list-hosts -G --list-groups -M --list-members
+          -s --scp-file -t --scp-target"
 
     case "${prev}" in
             -l|--host-list)
