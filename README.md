@@ -386,8 +386,22 @@ $ cogere -r 'stdout forking' -a -F a \
 
 Here I used `sleep` to break up the command output to ensure the lines were sent one at a time, depending on the speed of the operation all lines could be sent in tact like the previous example.
 
+###### Host and Group negation
+
+Hosts and groups can be negated from the target hosts by prefixing them with `:`.
+
+Example:
+```
+$ cogere -G
+group1 - cognitio
+group2 - arbitrium,cognitio
+$ cogere -r 'negation demo' -a -g :group1 hostname
+arbitrium.jar00n.net 
+```
+
+Here I supplied `-a` to build a list of all known hosts and then used `-g :group1` to remove the hosts within group1 from the hosts list.
+
 ### To do's
-- Allow for hostname negation
 - Allow for host removal of unreachable hosts
 - Allow for use of preexisting key in `--add-host` (Allows for automated deploy hosts to be already keyed, will rekey on add)
 - Allow for hosts to added to groups on creation
