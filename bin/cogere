@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.4.0
+#: Version : 1.4.1
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -516,7 +516,7 @@ sub leave_all_groups {
     for my $group ( keys %{ $config->{'groups'} } ) {
         my @members = get_members($group);
         if ( grep { $_ eq $host } @members ) {
-            process_leave_group( $group, $host );
+            process_leave_group( [$group], [$host] );
         }
     }
 
@@ -684,7 +684,7 @@ sub process_del_host {
 
     leave_all_groups($hostname);
     del_remote_key($hostname);
-    process_host_list($hostname);
+    process_host_list( [$hostname] );
     del_hosts_conf($hostname);
 
     return;
@@ -874,12 +874,12 @@ sub process_host {
     my ($host_list) = @_;
 
     $host_list or return;
-    
+
     my @dirty_hosts = @{$host_list};
     my @hosts       = uniq @dirty_hosts;
 
     for my $host (@hosts) {
-        if ($host =~ /^:/) {
+        if ( $host =~ /^:/ ) {
             $host =~ s/^://;
             push @negate_hosts, $host;
         }
@@ -899,7 +899,7 @@ sub process_group {
     my @groups       = uniq @dirty_groups;
 
     for my $group (@groups) {
-        if ($group =~ /^:/) {
+        if ( $group =~ /^:/ ) {
             $group =~ s/^://;
             my @members = get_members($group);
             @negate_hosts = ( @negate_hosts, @members );
