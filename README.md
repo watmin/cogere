@@ -116,7 +116,7 @@ Operations perform a given operation on a set of supplied parameters from the op
 
 The `--host` switch is both an operation and an option. When using another operation it provides the list of hosts to the operation.
 
-If ran with no other operations, it runs the supplied command on the host. Can be used multiple times
+If ran with no other operations, it runs the supplied command on the host. Can be supplied multiple times
 
 **REQUIRES `--reason|-r`, `command`**
 
@@ -131,7 +131,7 @@ cognitio.watministrator.net
 
 The `--group` switch is both an operation and an option. When using another operation it evaluates the group(s) to a list of hosts for the operation.
 
-If ran with no other operations, it runs the supplied command on the group. Can supply multiple groups comma separated.
+If ran with no other operations, it runs the supplied command on the group. Can be supplied multiple times
 
 **REQUIRES `--reason|-r`, `command`**
 
