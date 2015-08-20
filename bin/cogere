@@ -464,7 +464,11 @@ sub copy_key {
     write_log(%log);
 
     my $out = `$ssh_copy_id -i "$keys_dir/$hostname" $user\@$ipaddr`;
-    die "Failed to copy SSH key to remote host '$user\@$ipaddr': $out.\n" if ( $? > 0 );
+
+    if ( $? > 0 ) {
+        warn "Failed to copy SSH key to remote host '$user\@$ipaddr': $out.\n";
+        return 1;
+    }
 
     return;
 }
@@ -704,14 +708,27 @@ sub process_add_host {
 
     if ( !$default ) {
         my ( $password, $remoteid ) = gen_key($hostname);
-        copy_key( $hostname, $user, $ipaddr );
+        my $failure = copy_key( $hostname, $user, $ipaddr );
+
+        if ($failure) {
+            process_cleanup($hostname);
+            return 1;
+        }
+        
         add_hosts_conf( $hostname, $user, $ipaddr, $password, $remoteid );
     }
     else {
         my %def = get_params($default_key);
         add_hosts_conf( $hostname, $user, $ipaddr, $def{'password'}, $def{'remoteid'} );
-        key_from_default($hostname);
+        my $failure = key_from_default($hostname);
+        
+        if ($failure) {
+            process_cleanup($hostname);
+            return 1;
+        }
     }
+
+    print "Successfully added '$hostname'\n";
 
     return;
 }
@@ -729,6 +746,8 @@ sub process_del_host {
     del_remote_key($hostname);
     process_host_list( [$hostname] );
     del_hosts_conf($hostname);
+
+    print "Successfully deleted '$hostname'\n";
 
     return;
 }
@@ -755,6 +774,8 @@ sub process_rekey_host {
         add_hosts_conf( $hostname, $params{'username'}, $params{'ipaddr'}, $password, $remoteid );
         del_remote_key( $hostname, $params{'remoteid'} );
         process_host_list( [$hostname] );
+
+        print "Successfully rekeyed '$hostname'\n";
     }
 
     return;
@@ -765,6 +786,7 @@ sub process_list_hosts {
 
     my $hosts = $config->{'hosts'};
     for my $host ( sort keys %{$hosts} ) {
+        next if $host eq $default_key;
         print "$host\n";
     }
 
@@ -821,6 +843,7 @@ sub process_add_group {
     }
 
     $yaml->write($hosts_conf);
+    printf "Successfully created '%s' with '%s'\n", join( ' ', @groups ), join( ' ', @hosts );
 
     return;
 }
@@ -831,6 +854,7 @@ sub process_del_group {
     $group or die "Group was not provided.\n";
     my @dirty_groups = @{$group};
     my @groups       = uniq @dirty_groups;
+    validate_groups(@groups);
 
     my $yaml = get_yaml();
 
@@ -843,6 +867,13 @@ sub process_del_group {
     }
 
     $yaml->write($hosts_conf);
+    
+    if (@groups > 1) {
+        printf "Successfully removed groups '%s'\n", join( ' ', @groups );
+    }
+    else {
+        printf "Successfully removed group '%s'\n", join( ' ', @groups );
+    }
 
     return;
 }
@@ -872,9 +903,11 @@ sub process_join_group {
         }
 
         $yaml->[0]{'groups'}{$group} = [@members];
+
     }
 
     $yaml->write($hosts_conf);
+    printf "Successfully added '%s' to '%s'\n", join( ' ', @hosts ), join( ' ', @groups );
 
     return;
 }
@@ -909,6 +942,7 @@ sub process_leave_group {
     }
 
     $yaml->write($hosts_conf);
+    printf "Successfully removed '%s' from '%s'\n", join( ' ', @hosts ), join( ' ', @groups );
 
     return;
 }
