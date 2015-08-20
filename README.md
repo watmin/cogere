@@ -451,6 +451,20 @@ $ cogere -r 'negation demo' -a -g :group1 hostname
 arbitrium.jar00n.net 
 ```
 
+###### Multiple commands
+
+Mulitple commands can be supplied as arguments.
+
+Example:
+
+```
+$ cogere -r 'multiple commands' -h cognitio hostname hostname
+cognitio.watministrator.net
+cognitio.watministrator.net
+```
+
+Here I have two commands supplied, hostname twice.
+
 Here I supplied `-a` to build a list of all known hosts and then used `-g :group1` to remove the hosts within group1 from the hosts list.
 
 ### To do's

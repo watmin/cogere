@@ -93,7 +93,7 @@ GetOptions(
 
 my @target_hosts;
 my @negate_hosts;
-my $command  = $ARGV[0];
+my @commands = @ARGV;
 my $fork_num = $args{'fork'};
 
 if ( $args{'config'} ) {
@@ -181,7 +181,7 @@ if ( $args{'rekey-hosts'} ) {
 }
 
 if ( $args{'scp-source'} and $args{'scp-target'} and $args{'scp-only'} ) {
-    $command = "scp $args{'scp-source'} $args{'scp-target'}";
+    @commands = ("scp $args{'scp-source'} $args{'scp-target'}");
 }
 
 if (@target_hosts) {
@@ -200,8 +200,8 @@ cogere -- verb: to collect/gather, to compel/force
 Usage: cogere --reason 'report hostname' --host host1 --host host2 'hostname'
 
 Operations:
-  -h|--host       Host to connect to, can be provided multiple times. Command
-                    is executed on hosts if no other operations provided.
+  -h|--host       Host to connect to, can be provided multiple times. Commands
+                    are executed on hosts if no other operations provided.
                     Requires -r|--reason
   --add-host      Creates new host entry and keys remote host.
                     Requires --hostname, --ipaddr. Optionally --username
@@ -212,8 +212,8 @@ Operations:
   --rekey-hosts   Creates new SSH key, removes old SSH key and installs
                     new SSH key on remote host.
                     Requires -h|--host
-  -g|--group      Group to connect to, can be provided multiple times. Command
-                    is executed on groups if no other operations provided.
+  -g|--group      Group to connect to, can be provided multiple times. Commands
+                    are executed on groups if no other operations provided.
                     Requires -r|--reason
   --add-group     Creates new group of hosts.
                     Requires -g|--group, -h|--host
@@ -231,7 +231,7 @@ Options:
   --ipaddr            IP address to be provided to --add-host
   --username          User name to be provided to --add-host
                         Optional, 'cogere' is used by default
-  -r|--reason         Explanation of the command you are running
+  -r|--reason         Explanation of the commands you are running
   -a|--all            Builds a group of all defined hosts.
   -F|--fork           Forks supplied number of connections and waits for them
                         to complete, the continues. The keywords 'a' or 'all'
@@ -256,6 +256,9 @@ Options:
 Notes:
   Host and group negation:
     Hosts and groups can be negated by prefixing them with ':'
+  Mulitple commands:
+    Multiple commands can be specified as arguments, they will
+      be ran in sequence
 
 John Shields - SmartVault Corporation - 2015
 EOH
@@ -349,8 +352,9 @@ sub write_log {
 
         open my $handle, '>>', $log_file
           or die "Failed to open '$log_file': $!.\n";
-        printf $handle "%s\nTime:    %s\nUser:    %s\nHosts:   %s\nReason:  %s\nCommand:\n%s\n", '#' x 80, $timestamp,
-          $log{'user'}, join( ',', @{ $log{'hosts'} } ), $log{'message'}, $log{'command'};
+        printf $handle "%s\nTime:     %s\nUser:     %s\nHosts:    %s\nReason:   %s\nCommands:\n%s\n",
+          '#' x 80, $timestamp, $log{'user'}, join( ',', @{ $log{'hosts'} } ), $log{'message'},
+          join( "\n", @{ $log{'commands'} } );
         close $handle;
 
     }
@@ -467,7 +471,7 @@ sub copy_key {
 
     $log{'message'} = "Adding host '$hostname'";
     $log{'hosts'}   = [$hostname];
-    $log{'command'} = "[local] $ssh_copy_id -i \"$keys_dir/$hostname\" $user\@$ipaddr";
+    $log{'commands'} = "[local] $ssh_copy_id -i \"$keys_dir/$hostname\" $user\@$ipaddr";
     write_log(%log);
 
     my $out = `$ssh_copy_id -i "$keys_dir/$hostname" $user\@$ipaddr`;
@@ -527,7 +531,7 @@ sub add_remote_key {
     close $handle;
 
     my %params = get_params($hostname);
-    $command = "echo '$key' >> /home/$params{'username'}/.ssh/authorized_keys";
+    @commands = ("echo '$key' >> /home/$params{'username'}/.ssh/authorized_keys");
     $args{'reason'} = "Adding SSH key to $hostname";
 
     return;
@@ -538,7 +542,7 @@ sub del_remote_key {
 
     my %params = get_params($hostname);
     $params{'remoteid'} = $remoteid if $remoteid;
-    $command            = "sed -i '/$params{'remoteid'}\$/d' /home/$params{'username'}/.ssh/authorized_keys";
+    @commands           = ("sed -i '/$params{'remoteid'}\$/d' /home/$params{'username'}/.ssh/authorized_keys");
     $args{'reason'}     = "Removing SSH key from $hostname";
 
     return;
@@ -596,7 +600,7 @@ sub open_ssh {
     return $ssh;
 }
 
-sub run_command {
+sub run_commands {
     my ( $hostname, $timestamp, $scp_source, $scp_target, $scp_only ) = @_;
 
     my %params = get_params($hostname);
@@ -621,16 +625,18 @@ sub run_command {
         }
     }
 
-    my ( $out, $pid ) = $ssh->pipe_out($command);
+    for my $command (@commands) {
+        my ( $out, $pid ) = $ssh->open2pty($command);
 
-    if ( $ssh->error ) {
-        warn "Failed to open command pipe on '$hostname': ${\$ssh->error}.\n";
-        return 1;
+        if ( $ssh->error ) {
+            warn "Failed to open command pipe on '$hostname': ${\$ssh->error}.\n";
+            return 1;
+        }
+
+        if   ($fork_num) { print "[$hostname] $_" while <$out> }
+        else             { print                  while <$out> }
+        close $out;
     }
-
-    if   ($fork_num) { print "[$hostname] $_" while <$out> }
-    else             { print                  while <$out> }
-    close $out;
 
     return;
 }
@@ -643,7 +649,7 @@ sub fork_hosts {
     for my $hostname ( @{$hosts} ) {
         $pm->start and next HOSTS;
 
-        run_command( $hostname, $timestamp, $scp_file, $scp_target );
+        run_commands( $hostname, $timestamp, $scp_file, $scp_target );
 
         $pm->finish;
     }
@@ -676,15 +682,15 @@ sub process_host_list {
     $timestamp = 0 if !$timestamp;
 
     $host_list      or die "Host list was not provided.\n";
-    $command        or die "Command was not provided.\n";
+    @commands       or die "Commands were not provided.\n";
     $args{'reason'} or die "Reason was not provided.\n";
 
     my @dirty_hosts = @{$host_list};
     my @hosts       = uniq @dirty_hosts;
     validate_hosts(@hosts);
 
-    $log{'hosts'}   = [@hosts];
-    $log{'command'} = $command;
+    $log{'hosts'}    = [@hosts];
+    $log{'commands'} = [@commands];
     $log{'message'} = $args{'reason'} unless defined $log{'message'};
 
     write_log(%log);
@@ -700,7 +706,7 @@ sub process_host_list {
     }
     else {
         for my $hostname (@hosts) {
-            run_command( $hostname, $timestamp, $scp_file, $scp_target, $scp_only );
+            run_commands( $hostname, $timestamp, $scp_file, $scp_target, $scp_only );
         }
     }
 
