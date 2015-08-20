@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.5.1
+#: Version : 1.6.0
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -87,6 +87,7 @@ GetOptions(
     '--default-key'  => \$args{'default-key'},
     '--new-default'  => \$args{'new-default'},
     '--show-default' => \$args{'show-default'},
+    '--cleanup'      => \$args{'cleanup'},
 ) or die "Invalid arguments. See $0 --help\n";
 
 my @target_hosts;
@@ -148,6 +149,10 @@ if ( $args{'join-group'} ) {
 }
 if ( $args{'leave-group'} ) {
     process_leave_group( $args{'group'}, $args{'host'} );
+    exit;
+}
+if ( $args{'cleanup'} ) {
+    process_cleanup( $args{'hostname'} );
     exit;
 }
 
@@ -238,6 +243,8 @@ Options:
                         when adding host
   --new-default       Create a new default SSH key
   --show-default      Prints the default public key
+  --cleanup           Removes all entries for supplied host
+                        Requires --hostname
 
 Notes:
   Host and group negation:
@@ -487,8 +494,15 @@ sub del_hosts_conf {
 
     $hostname = "$hostname.$timestamp" if $timestamp;
 
-    unlink "$keys_dir/$hostname"     or die "Failed to unlink '$keys_dir/$hostname': $!.\n";
-    unlink "$keys_dir/$hostname.pub" or die "Failed to unlink '$keys_dir/$hostname.pub': $!.\n";
+    if ( -f "$keys_dir/$hostname" ) {
+        unlink "$keys_dir/$hostname"
+          or die "Failed to unlink '$keys_dir/$hostname': $!.\n";
+    }
+
+    if ( -f "$keys_dir/$hostname.pub" ) {
+        unlink "$keys_dir/$hostname.pub"
+          or die "Failed to unlink '$keys_dir/$hostname.pub': $!.\n";
+    }
 
     return;
 }
@@ -1033,3 +1047,15 @@ sub remove_default {
 
     return;
 }
+
+sub process_cleanup {
+    my ($hostname) = @_;
+
+    $hostname or die "Failed to provide hostname.\n";
+
+    leave_all_groups($hostname);
+    del_hosts_conf($hostname);
+
+    return;
+}
+
