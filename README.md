@@ -51,10 +51,11 @@ Options:
   -G|--list-groups    Displays all defined groups
   -M|--list-members   Displays all hosts within group
                         Requires -g|--group
-  -s|--scp-file       Performs an scp on local file
+  -s|--scp-source     Performs an scp on local file or directory
                         Requires -t|--scp-target
   -t|--scp-target     Performs an scp to target remote directory
                         Requires -s|--scp-file
+  --scp-only          Only copy files to remote hosts
   --default-key       Uses the default SSH key rather than password
                         when adding host
   --new-default       Create a new default SSH key
@@ -276,18 +277,20 @@ $ cogere -r 'forking' -a -F a \
 [arbitrium] 5
 ```
 
-###### --scp-file | -s , --scp-target | -t
+###### --scp-source | -s , --scp-target | -t, --scp-only
 
-Performs an scp on file to target directory on remote host.
+Performs an scp on source file or directory to target directory on remote host. If `--scp-only` is used no command will be executed and can be witheld entirely
 
-**REQUIRES `--scp-target|-s`, `--scp-target|-t`**
+**REQUIRES `--scp-source|-s`, `--scp-target|-t`**
+
+**OPTIONALLY `--scp-only`**
 
 Example:
 ```
 $ cat << EOF > /tmp/bash-me
 head -n2 /etc/hosts
 EOF
-$ cogere -r 'scp testing' -a --scp-file /tmp/bash-me --scp-target /tmp \
+$ cogere -r 'scp testing' -a --scp-source /tmp/bash-me --scp-target /tmp \
   'hostname; bash /tmp/bash-me; rm -f /tmp/bash-me; echo'
 arbitrium.jar00n.net
 127.0.0.1	localhost
@@ -298,6 +301,7 @@ cognitio.watministrator.net
 127.0.1.1	cognitio.watministrator.net cognitio
 
 ```
+*`--scp-target` must be a directory*
 
 ###### --new-default
 
