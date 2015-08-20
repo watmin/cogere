@@ -59,6 +59,8 @@ Options:
                         when adding host
   --new-default       Create a new default SSH key
   --show-default      Prints the default public key
+  --cleanup           Removes all entries for supplied host
+                        Requires --hostname
 
 Notes:
   Host and group negation:
@@ -328,6 +330,12 @@ Example:
 $ cogere --add-host --hostname cognitio --ipaddr 172.16.0.6 --default-key
 ```
 
+###### --cleanup
+
+Removes any host entries and keys on the local system for the provided hostname
+
+**REQUIRES `--hostname`**
+
 ###### --list-hosts | -H
 
 Lists all defined hosts.
@@ -442,10 +450,7 @@ arbitrium.jar00n.net
 Here I supplied `-a` to build a list of all known hosts and then used `-g :group1` to remove the hosts within group1 from the hosts list.
 
 ### To do's
-- Allow for host removal of unreachable hosts
 - Allow for hosts to added to groups on creation
 - Optionally use DNS if `--ipaddr` not provided with `--add-host`
-- Add verbosity to commands with no output (Add/Del Host/Group)
 - Allow for scp to be performed with no command
 - Allow for multiple commands (Consider @ARGV as a command list)
-- Improve error handling with respect to the configuration files and keys
