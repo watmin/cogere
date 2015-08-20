@@ -181,7 +181,7 @@ if ( $args{'rekey-hosts'} ) {
 }
 
 if ( $args{'scp-source'} and $args{'scp-target'} and $args{'scp-only'} ) {
-    $command = 1;
+    $command = "scp $args{'scp-source'} $args{'scp-target'}";
 }
 
 if (@target_hosts) {
@@ -1074,6 +1074,8 @@ sub key_from_default {
 
     my %params = get_params($hostname);
     my %def    = get_params($default_key);
+
+    $log{'message'} = "Adding host '$hostname' using default key";
 
     copy_default_key($hostname);
     my $timestamp = backup_key($hostname);
