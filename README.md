@@ -456,5 +456,5 @@ Here I supplied `-a` to build a list of all known hosts and then used `-g :group
 ### To do's
 - Allow for hosts to added to groups on creation
 - Optionally use DNS if `--ipaddr` not provided with `--add-host`
-- Allow for scp to be performed with no command
 - Allow for multiple commands (Consider @ARGV as a command list)
+- Allow for commands to be supplied via `--command-file`
