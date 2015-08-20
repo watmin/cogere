@@ -89,6 +89,7 @@ GetOptions(
     'new-default'    => \$args{'new-default'},
     'show-default'   => \$args{'show-default'},
     'cleanup'        => \$args{'cleanup'},
+    'command-file=s' => \$args{'command-file'},
 ) or die "Invalid arguments. See $0 --help\n";
 
 my @target_hosts;
@@ -184,6 +185,10 @@ if ( $args{'scp-source'} and $args{'scp-target'} and $args{'scp-only'} ) {
     @commands = ("scp $args{'scp-source'} $args{'scp-target'}");
 }
 
+if ( $args{'command-file'} ) {
+    process_command_file( $args{'command-file'} );
+}
+
 if (@target_hosts) {
     process_host_list( [@target_hosts], 0,
       $args{'scp-source'}, $args{'scp-target'}, $args{'scp-only'} );
@@ -241,6 +246,7 @@ Options:
   -G|--list-groups    Displays all defined groups
   -M|--list-members   Displays all hosts within group
                         Requires -g|--group
+  --command-file      Execute commands provided by command-file
   -s|--scp-source     Performs an scp on local file or directory
                         Requires -t|--scp-target
   -t|--scp-target     Performs an scp to target remote directory
@@ -258,7 +264,7 @@ Notes:
     Hosts and groups can be negated by prefixing them with ':'
   Mulitple commands:
     Multiple commands can be specified as arguments, they will
-      be ran in sequence
+    be ran in sequence
 
 John Shields - SmartVault Corporation - 2015
 EOH
@@ -1109,6 +1115,19 @@ sub process_cleanup {
 
     leave_all_groups($hostname);
     del_hosts_conf($hostname);
+
+    return;
+}
+
+sub process_command_file {
+    my ($command_file) = @_;
+
+    open my $command_h, '<', $command_file
+      or die "Failed to open '$command_file': $!\n";
+    @commands = <$command_h>;
+    close $command_h;
+
+    chomp @commands;
 
     return;
 }

@@ -10,8 +10,8 @@ cogere -- verb: to collect/gather, to compel/force
 Usage: cogere --reason 'report hostname' --host host1 --host host2 'hostname'
 
 Operations:
-  -h|--host       Host to connect to, can be provided multiple times. Command
-                    is executed on hosts if no other operations provided.
+  -h|--host       Host to connect to, can be provided multiple times. Commands
+                    are executed on hosts if no other operations provided.
                     Requires -r|--reason
   --add-host      Creates new host entry and keys remote host.
                     Requires --hostname, --ipaddr. Optionally --username
@@ -22,8 +22,8 @@ Operations:
   --rekey-hosts   Creates new SSH key, removes old SSH key and installs
                     new SSH key on remote host.
                     Requires -h|--host
-  -g|--group      Group to connect to, can be provided multiple times. Command
-                    is executed on groups if no other operations provided.
+  -g|--group      Group to connect to, can be provided multiple times. Commands
+                    are executed on groups if no other operations provided.
                     Requires -r|--reason
   --add-group     Creates new group of hosts.
                     Requires -g|--group, -h|--host
@@ -41,7 +41,7 @@ Options:
   --ipaddr            IP address to be provided to --add-host
   --username          User name to be provided to --add-host
                         Optional, 'cogere' is used by default
-  -r|--reason         Explanation of the command you are running
+  -r|--reason         Explanation of the commands you are running
   -a|--all            Builds a group of all defined hosts.
   -F|--fork           Forks supplied number of connections and waits for them
                         to complete, the continues. The keywords 'a' or 'all'
@@ -51,6 +51,7 @@ Options:
   -G|--list-groups    Displays all defined groups
   -M|--list-members   Displays all hosts within group
                         Requires -g|--group
+  --command-file      Execute commands provided by command-file
   -s|--scp-source     Performs an scp on local file or directory
                         Requires -t|--scp-target
   -t|--scp-target     Performs an scp to target remote directory
@@ -66,6 +67,9 @@ Options:
 Notes:
   Host and group negation:
     Hosts and groups can be negated by prefixing them with ':'
+  Mulitple commands:
+    Multiple commands can be specified as arguments, they will
+    be ran in sequence
 
 John Shields - SmartVault Corporation - 2015
 ```
@@ -340,6 +344,22 @@ Removes any host entries and keys on the local system for the provided hostname
 
 **REQUIRES `--hostname`**
 
+###### --command-file
+
+Builds a commands array from file. Commands are executed in the order they are written.
+
+Example:
+
+```
+$ cat << EOF > commands.txt
+> hostname
+> hostname
+> EOF
+$ cogere -r debug -h cognitio --command-file commands.txt
+cognitio.watministrator.net
+cognitio.watministrator.net
+```
+
 ###### --list-hosts | -H
 
 Lists all defined hosts.
@@ -470,5 +490,3 @@ Here I supplied `-a` to build a list of all known hosts and then used `-g :group
 ### To do's
 - Allow for hosts to added to groups on creation
 - Optionally use DNS if `--ipaddr` not provided with `--add-host`
-- Allow for multiple commands (Consider @ARGV as a command list)
-- Allow for commands to be supplied via `--command-file`
