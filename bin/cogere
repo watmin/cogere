@@ -130,7 +130,8 @@ if ( $args{'show-default'} ) {
 }
 
 if ( $args{'add-host'} ) {
-    process_add_host( $args{'hostname'}, $args{'ipaddr'}, $args{'username'}, $args{'default-key'} );
+    process_add_host( $args{'hostname'}, $args{'ipaddr'}, $args{'username'},
+      $args{'default-key'}, $args{'group'} );
     exit;
 }
 if ( $args{'del-host'} ) {
@@ -720,11 +721,18 @@ sub process_host_list {
 }
 
 sub process_add_host {
-    my ( $hostname, $ipaddr, $user, $default ) = @_;
+    my ( $hostname, $ipaddr, $user, $default, $group ) = @_;
 
     $hostname or die "Failed to provide hostname.\n";
     $ipaddr   or die "Failed to provide IP address.\n";
-    $user = defined $user ? $user : $username;
+    $user     = defined $user ? $user : $username;
+
+    my @groups;
+    if ($group) {
+        my @dirty_groups = @{$group};
+        @groups       = uniq @dirty_groups;
+        validate_groups(@groups);
+    }
 
     get_host($hostname) and die "Hostname '$hostname' already defined.\n";
 
@@ -753,6 +761,10 @@ sub process_add_host {
     }
 
     print "Successfully added '$hostname'\n";
+
+    if (@groups) {
+        process_join_group( [@groups], [$hostname] );
+    }
 
     return;
 }
@@ -867,7 +879,8 @@ sub process_add_group {
     }
 
     $yaml->write($hosts_conf);
-    printf "Successfully created '%s' with '%s'\n", join( ' ', @groups ), join( ' ', @hosts );
+    printf "Successfully created groups: '%s' with hosts: '%s'\n",
+      join( ',', @groups ), join( ',', @hosts );
 
     return;
 }
@@ -891,13 +904,8 @@ sub process_del_group {
     }
 
     $yaml->write($hosts_conf);
-    
-    if (@groups > 1) {
-        printf "Successfully removed groups '%s'\n", join( ' ', @groups );
-    }
-    else {
-        printf "Successfully removed group '%s'\n", join( ' ', @groups );
-    }
+    printf "Successfully removed groups: '%s'\n",
+      join( ',', @groups );
 
     return;
 }
@@ -931,7 +939,8 @@ sub process_join_group {
     }
 
     $yaml->write($hosts_conf);
-    printf "Successfully added '%s' to '%s'\n", join( ' ', @hosts ), join( ' ', @groups );
+    printf "Successfully added hosts: '%s' to groups: '%s'\n",
+      join( ',', @hosts ), join( ',', @groups );
 
     return;
 }
@@ -966,7 +975,8 @@ sub process_leave_group {
     }
 
     $yaml->write($hosts_conf);
-    printf "Successfully removed '%s' from '%s'\n", join( ' ', @hosts ), join( ' ', @groups );
+    printf "Successfully removed hosts: '%s' from groups: '%s'\n",
+      join( ',', @hosts ), join( ',', @groups );
 
     return;
 }
@@ -1062,6 +1072,8 @@ sub process_new_default {
 
     my ( $password, $remoteid ) = gen_key($default_key);
     add_hosts_conf( $default_key, 'default', '0.0.0.0', $password, $remoteid );
+
+    process_show_default();
 
     return;
 }

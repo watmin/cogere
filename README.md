@@ -14,9 +14,8 @@ Operations:
                     are executed on hosts if no other operations provided.
                     Requires -r|--reason
   --add-host      Creates new host entry and keys remote host.
-                    Requires --hostname, --ipaddr. Optionally --username
-                    Optionally can use --default-key to connect using
-                    default SSH key rather than password authentication
+                    Requires --hostname, --ipaddr.
+                    Optionally --username, --group|-g, --default-key
   --del-host      Removes host entry and remove key from remote host
                     Requires --hostname
   --rekey-hosts   Creates new SSH key, removes old SSH key and installs
@@ -65,6 +64,9 @@ Options:
                         Requires --hostname
 
 Notes:
+  Adding new hosts to existing groups:
+    You can supply --group|-g to --add-host to add the new host
+    to the supplied groups
   Host and group negation:
     Hosts and groups can be negated by prefixing them with ':'
   Mulitple commands:
@@ -488,5 +490,4 @@ Here I have two commands supplied, hostname twice.
 Here I supplied `-a` to build a list of all known hosts and then used `-g :group1` to remove the hosts within group1 from the hosts list.
 
 ### To do's
-- Allow for hosts to added to groups on creation
 - Optionally use DNS if `--ipaddr` not provided with `--add-host`
