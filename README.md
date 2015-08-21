@@ -14,8 +14,9 @@ Operations:
                     are executed on hosts if no other operations provided.
                     Requires -r|--reason
   --add-host      Creates new host entry and keys remote host.
-                    Requires --hostname, --ipaddr.
-                    Optionally --username, --group|-g, --default-key
+                    Requires --hostname. Optionally --ipaddr, --username
+                    Optionally can use --default-key to connect using
+                    default SSH key rather than password authentication
   --del-host      Removes host entry and remove key from remote host
                     Requires --hostname
   --rekey-hosts   Creates new SSH key, removes old SSH key and installs
@@ -62,16 +63,17 @@ Options:
   --show-default      Prints the default public key
   --cleanup           Removes all entries for supplied host
                         Requires --hostname
+  --update-ipaddr     Updates the IP address for a given host
+                        Requires --hostname
 
 Notes:
-  Adding new hosts to existing groups:
-    You can supply --group|-g to --add-host to add the new host
-    to the supplied groups
   Host and group negation:
     Hosts and groups can be negated by prefixing them with ':'
   Mulitple commands:
     Multiple commands can be specified as arguments, they will
     be ran in sequence
+  Hostname resolution
+    Setting a hostname's IP address to 0 will for DNS lookups
 
 John Shields - SmartVault Corporation - 2015
 ```
@@ -456,5 +458,17 @@ Here I have two commands supplied, hostname twice.
 
 Here I supplied `-a` to build a list of all known hosts and then used `-g :group1` to remove the hosts within group1 from the hosts list.
 
+###### Hostname resolution
+
+To update an existing host to use DNS set the IP address to 0.
+
+Example:
+
+```
+cogere --update-ipaddr --hostname watministrator.net --ipaddr 0
+```
+
+New hosts can be looked up by DNS by simply witholding the `--ipaddr` switch when being added.
+
 ### To do's
-- Optionally use DNS if `--ipaddr` not provided with `--add-host`
+- Version 2.0 - Breaking up the script into several libraries resulting in a small binary/script
