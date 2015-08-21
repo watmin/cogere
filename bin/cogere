@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.6.0
+#: Version : 1.6.1
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -92,11 +92,6 @@ GetOptions(
     'command-file=s' => \$args{'command-file'},
 ) or die "Invalid arguments. See $0 --help\n";
 
-my @target_hosts;
-my @negate_hosts;
-my @commands = @ARGV;
-my $fork_num = $args{'fork'};
-
 if ( $args{'config'} ) {
     set_globals( $args{'config'} );
 }
@@ -130,8 +125,7 @@ if ( $args{'show-default'} ) {
 }
 
 if ( $args{'add-host'} ) {
-    process_add_host( $args{'hostname'}, $args{'ipaddr'}, $args{'username'},
-      $args{'default-key'}, $args{'group'} );
+    process_add_host( $args{'hostname'}, $args{'ipaddr'}, $args{'username'}, $args{'default-key'}, $args{'group'} );
     exit;
 }
 if ( $args{'del-host'} ) {
@@ -164,6 +158,11 @@ if ( $args{'new-default'} ) {
     exit;
 }
 
+my @target_hosts;
+my @negate_hosts;
+my @commands = @ARGV;
+my $fork_num = $args{'fork'};
+
 if ( $args{'all'} ) {
     process_all();
 }
@@ -191,8 +190,7 @@ if ( $args{'command-file'} ) {
 }
 
 if (@target_hosts) {
-    process_host_list( [@target_hosts], 0,
-      $args{'scp-source'}, $args{'scp-target'}, $args{'scp-only'} );
+    process_host_list( [@target_hosts], 0, $args{'scp-source'}, $args{'scp-target'}, $args{'scp-only'} );
     exit;
 }
 else {
@@ -476,8 +474,8 @@ sub gen_key {
 sub copy_key {
     my ( $hostname, $user, $ipaddr ) = @_;
 
-    $log{'message'} = "Adding host '$hostname'";
-    $log{'hosts'}   = [$hostname];
+    $log{'message'}  = "Adding host '$hostname'";
+    $log{'hosts'}    = [$hostname];
     $log{'commands'} = "[local] $ssh_copy_id -i \"$keys_dir/$hostname\" $user\@$ipaddr";
     write_log(%log);
 
@@ -519,11 +517,13 @@ sub del_hosts_conf {
     if ( -f "$keys_dir/$hostname" ) {
         unlink "$keys_dir/$hostname"
           or die "Failed to unlink '$keys_dir/$hostname': $!.\n";
+        print "Removed private key for '$hostname'.\n";
     }
 
     if ( -f "$keys_dir/$hostname.pub" ) {
         unlink "$keys_dir/$hostname.pub"
           or die "Failed to unlink '$keys_dir/$hostname.pub': $!.\n";
+        print "Removed public key for '$hostname'.\n";
     }
 
     return;
@@ -698,7 +698,7 @@ sub process_host_list {
 
     $log{'hosts'}    = [@hosts];
     $log{'commands'} = [@commands];
-    $log{'message'} = $args{'reason'} unless defined $log{'message'};
+    $log{'message'}  = $args{'reason'} unless defined $log{'message'};
 
     write_log(%log);
 
@@ -713,7 +713,8 @@ sub process_host_list {
     }
     else {
         for my $hostname (@hosts) {
-            run_commands( $hostname, $timestamp, $scp_file, $scp_target, $scp_only );
+            run_commands( $hostname, $timestamp, $scp_file, $scp_target, $scp_only )
+              and return 1;
         }
     }
 
@@ -725,12 +726,12 @@ sub process_add_host {
 
     $hostname or die "Failed to provide hostname.\n";
     $ipaddr   or die "Failed to provide IP address.\n";
-    $user     = defined $user ? $user : $username;
+    $user = defined $user ? $user : $username;
 
     my @groups;
     if ($group) {
         my @dirty_groups = @{$group};
-        @groups       = uniq @dirty_groups;
+        @groups = uniq @dirty_groups;
         validate_groups(@groups);
     }
 
@@ -743,18 +744,20 @@ sub process_add_host {
         my $failure = copy_key( $hostname, $user, $ipaddr );
 
         if ($failure) {
+            print "Failed to copy key to '$hostname'\n";
             process_cleanup($hostname);
             return 1;
         }
-        
+
         add_hosts_conf( $hostname, $user, $ipaddr, $password, $remoteid );
     }
     else {
         my %def = get_params($default_key);
         add_hosts_conf( $hostname, $user, $ipaddr, $def{'password'}, $def{'remoteid'} );
         my $failure = key_from_default($hostname);
-        
+
         if ($failure) {
+            print "Failed to key '$hostname' using default key.\n";
             process_cleanup($hostname);
             return 1;
         }
@@ -780,7 +783,14 @@ sub process_del_host {
 
     leave_all_groups($hostname);
     del_remote_key($hostname);
-    process_host_list( [$hostname] );
+
+    my $failure = process_host_list( [$hostname] );
+    if ($failure) {
+        print "Failed to delete remote key from '$hostname'\n";
+        process_cleanup($hostname);
+        return 1;
+    }
+
     del_hosts_conf($hostname);
 
     print "Successfully deleted '$hostname'\n";
@@ -879,8 +889,7 @@ sub process_add_group {
     }
 
     $yaml->write($hosts_conf);
-    printf "Successfully created groups: '%s' with hosts: '%s'\n",
-      join( ',', @groups ), join( ',', @hosts );
+    printf "Successfully created groups: '%s' with hosts: '%s'\n", join( ',', @groups ), join( ',', @hosts );
 
     return;
 }
@@ -904,8 +913,7 @@ sub process_del_group {
     }
 
     $yaml->write($hosts_conf);
-    printf "Successfully removed groups: '%s'\n",
-      join( ',', @groups );
+    printf "Successfully removed groups: '%s'\n", join( ',', @groups );
 
     return;
 }
@@ -939,8 +947,7 @@ sub process_join_group {
     }
 
     $yaml->write($hosts_conf);
-    printf "Successfully added hosts: '%s' to groups: '%s'\n",
-      join( ',', @hosts ), join( ',', @groups );
+    printf "Successfully added hosts: '%s' to groups: '%s'\n", join( ',', @hosts ), join( ',', @groups );
 
     return;
 }
@@ -975,8 +982,7 @@ sub process_leave_group {
     }
 
     $yaml->write($hosts_conf);
-    printf "Successfully removed hosts: '%s' from groups: '%s'\n",
-      join( ',', @hosts ), join( ',', @groups );
+    printf "Successfully removed hosts: '%s' from groups: '%s'\n", join( ',', @hosts ), join( ',', @groups );
 
     return;
 }
@@ -1104,12 +1110,25 @@ sub key_from_default {
     copy_default_key($hostname);
     my $timestamp = backup_key($hostname);
     my ( $password, $remoteid ) = gen_key($hostname);
+
     add_remote_key($hostname);
-    process_host_list( [$hostname], $timestamp );
+
+    my $failed_add = process_host_list( [$hostname], $timestamp );
+    if ($failed_add) {
+        print "Failed to add new key to '$hostname'.\n";
+        process_cleanup($hostname);
+        return 1;
+    }
+
     del_hosts_conf( $hostname, $timestamp );
     add_hosts_conf( $hostname, $params{'username'}, $params{'ipaddr'}, $password, $remoteid );
     del_remote_key( $hostname, $def{'remoteid'} );
-    process_host_list( [$hostname] );
+
+    my $failed_del = process_host_list( [$hostname] );
+    if ($failed_del) {
+        print "Failed to remove default key from '$hostname'.\n";
+        return 1;
+    }
 
     return;
 }

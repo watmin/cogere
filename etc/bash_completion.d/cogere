@@ -8,7 +8,8 @@ _cogere() {
           --add-group --del-group --join-group --leave-group --help
           -f --config --hostname --ipaddr --username -r --reason
           -a --all -H --list-hosts -G --list-groups -M --list-members
-          -s --scp-file -t --scp-target"
+          -s --scp-file -t --scp-target --scp-only --command-file 
+          --new-default --show-default --default-key --cleanup"
 
     case "${prev}" in
             -h|--host)
