@@ -73,7 +73,7 @@ Notes:
     Multiple commands can be specified as arguments, they will
     be ran in sequence
   Hostname resolution
-    Setting a hostname's IP address to 0 will for DNS lookups
+    Setting a hostname's IP address to 0 will force DNS lookups
 
 John Shields - SmartVault Corporation - 2015
 ```
