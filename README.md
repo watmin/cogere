@@ -10,37 +10,51 @@ cogere -- verb: to collect/gather, to compel/force
 Usage: cogere --reason 'report hostname' --host host1 --host host2 'hostname'
 
 Operations:
-  -h|--host       Host to connect to, can be provided multiple times. Commands
-                    are executed on hosts if no other operations provided.
-                    Requires -r|--reason
-  --add-host      Creates new host entry and keys remote host.
-                    Requires --hostname. Optionally --ipaddr, --username
-                    Optionally can use --default-key to connect using
-                    default SSH key rather than password authentication
-  --del-host      Removes host entry and remove key from remote host
-                    Requires --hostname
-  --rekey-hosts   Creates new SSH key, removes old SSH key and installs
-                    new SSH key on remote host.
-                    Requires -h|--host
-  -g|--group      Group to connect to, can be provided multiple times. Commands
-                    are executed on groups if no other operations provided.
-                    Requires -r|--reason
-  --add-group     Creates new group of hosts.
-                    Requires -g|--group, -h|--host
-  --del-group     Delete group.
-                    Requires -g|--group
-  --join-group    Adds hosts to an existing group.
-                    Requires -g|--group, -h|--host
-  --leave-group   Remove hosts from an existing group.
-                    Requires -g|--group, -h|--host
+  -h|--host        Host to connect to, can be provided multiple times. Commands
+                     are executed on hosts if no other operations provided.
+                     Requires -r|--reason
+  --add-host       Creates new host entry and keys remote host.
+                     Requires --hostname. Optionally --ipaddr, --username
+                     Optionally can use --default-key to connect using
+                     default SSH key rather than password authentication
+  --del-host       Removes host entry and remove key from remote host
+                     Requires --hostname
+  --rekey-hosts    Creates new SSH key, removes old SSH key and installs
+                     new SSH key on remote host.
+                     Requires -h|--host
+  -g|--group       Group to connect to, can be provided multiple times. Commands
+                     are executed on groups if no other operations provided.
+                     Requires -r|--reason
+  --add-group      Creates new group of hosts.
+                     Requires -g|--group, -h|--host
+  --del-group      Delete group.
+                     Requires -g|--group
+  --join-group     Adds hosts to an existing group.
+                     Requires -g|--group, -h|--host
+  --leave-group    Remove hosts from an existing group.
+                     Requires -g|--group, -h|--host
+  -s|--scp-source  Performs an scp on local file or directory
+                     Requires -t|--scp-target
+  -t|--scp-target  Performs an scp to target remote directory
+                     Requires -s|--scp-file
+  --scp-only       Only copy files to remote hosts
+  --new-default    Create a new default SSH key
+  --show-default   Prints the default public key
+  --cleanup        Removes all entries for supplied host
+                     Requires --hostname
+  --update-ipaddr  Updates the IP address for a given host
+                     Requires --hostname
 
 Options:
   --help              Shows this output
   -f|--config         Alternate configuration file
+  --command-file      Execute commands provided by command-file
   --hostname          Hostname to be provided to --add-host or --del-host
   --ipaddr            IP address to be provided to --add-host
   --username          User name to be provided to --add-host
                         Optional, 'cogere' is used by default
+  --default-key       Uses the default SSH key rather than password
+                        when adding host
   -r|--reason         Explanation of the commands you are running
   -a|--all            Builds a group of all defined hosts.
   -F|--fork           Forks supplied number of connections and waits for them
@@ -51,20 +65,6 @@ Options:
   -G|--list-groups    Displays all defined groups
   -M|--list-members   Displays all hosts within group
                         Requires -g|--group
-  --command-file      Execute commands provided by command-file
-  -s|--scp-source     Performs an scp on local file or directory
-                        Requires -t|--scp-target
-  -t|--scp-target     Performs an scp to target remote directory
-                        Requires -s|--scp-file
-  --scp-only          Only copy files to remote hosts
-  --default-key       Uses the default SSH key rather than password
-                        when adding host
-  --new-default       Create a new default SSH key
-  --show-default      Prints the default public key
-  --cleanup           Removes all entries for supplied host
-                        Requires --hostname
-  --update-ipaddr     Updates the IP address for a given host
-                        Requires --hostname
 
 Notes:
   Host and group negation:
