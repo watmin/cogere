@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.7.2
+#: Version : 1.7.3
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -615,7 +615,7 @@ sub open_ssh {
         'default_stdout_fh' => $out_garb,
         'default_stderr_fh' => $err_garb,
         'default_stdin_fh'  => $in_garb,
-        'master_opts'       => [ 
+        'master_opts'       => [
             -o => 'StrictHostKeyChecking=no',
         ],
     );
@@ -654,15 +654,20 @@ sub run_commands {
     }
 
     for my $command (@commands) {
-        my ( $out, $pid ) = $ssh->open2pty($command);
+        my ( $out, $pid ) = $ssh->pipe_out($command);
 
         if ( $ssh->error ) {
             warn "Failed to open command pipe on '$hostname': ${\$ssh->error}.\n";
             return 1;
         }
 
-        if   ($fork_num) { print "[$hostname] $_" while <$out> }
-        else             { print                  while <$out> }
+        my $line;
+        while ( $line = <$out> ) {
+            if ($fork_num) {
+                $line = "[$hostname] $line";
+            }
+            print $line;
+        }
         close $out;
     }
 
