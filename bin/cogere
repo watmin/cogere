@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.7.1
+#: Version : 1.7.2
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -457,9 +457,9 @@ sub get_params {
         'public'   => "$keys_dir/$host.pub",
     );
 
-    if (!$params{'ipaddr'}) {
+    if ( !$params{'ipaddr'} ) {
         $params{'ipaddr'} = resolve_hostname($host);
-        if (!$params{'ipaddr'}) {
+        if ( !$params{'ipaddr'} ) {
             warn "Could not resolve hostname '$host'.\n";
         }
     }
@@ -615,8 +615,8 @@ sub open_ssh {
         'default_stdout_fh' => $out_garb,
         'default_stderr_fh' => $err_garb,
         'default_stdin_fh'  => $in_garb,
-        'master_opts'       => [
-            -o => 'StrictHostKeyChecking=no'
+        'master_opts'       => [ 
+            -o => 'StrictHostKeyChecking=no',
         ],
     );
 
@@ -705,7 +705,7 @@ sub perform_scp {
 }
 
 sub process_host_list {
-    my ( $host_list, $timestamp, $scp_file, $scp_target, $scp_only ) = @_;
+    my ( $host_list, $timestamp, $scp_file, $scp_target, $scp_only, $stop ) = @_;
 
     $timestamp = 0 if !$timestamp;
 
@@ -734,8 +734,10 @@ sub process_host_list {
     }
     else {
         for my $hostname (@hosts) {
-            run_commands( $hostname, $timestamp, $scp_file, $scp_target, $scp_only )
-              and return 1;
+            my $failure = run_commands( $hostname, $timestamp, $scp_file, $scp_target, $scp_only );
+            if ( $failure and $stop ) {
+                return 1;
+            }
         }
     }
 
@@ -746,9 +748,9 @@ sub process_add_host {
     my ( $hostname, $ipaddr, $user, $default, $group ) = @_;
 
     $hostname or die "Failed to provide hostname.\n";
-    
+
     my $resolved;
-    if (!$ipaddr) {
+    if ( !$ipaddr ) {
         $ipaddr = resolve_hostname($hostname);
         if ($ipaddr) {
             $resolved = 1;
@@ -818,7 +820,7 @@ sub process_del_host {
     leave_all_groups($hostname);
     del_remote_key($hostname);
 
-    my $failure = process_host_list( [$hostname] );
+    my $failure = process_host_list( [$hostname], 0, 0, 0, 0, 1 );
     if ($failure) {
         print "Failed to delete remote key from '$hostname'\n";
         process_cleanup($hostname);
@@ -1147,7 +1149,7 @@ sub key_from_default {
 
     add_remote_key($hostname);
 
-    my $failed_add = process_host_list( [$hostname], $timestamp );
+    my $failed_add = process_host_list( [$hostname], $timestamp, 0, 0, 0, 1 );
     if ($failed_add) {
         print "Failed to add new key to '$hostname'.\n";
         process_cleanup($hostname);
@@ -1158,7 +1160,7 @@ sub key_from_default {
     add_hosts_conf( $hostname, $params{'username'}, $params{'ipaddr'}, $password, $remoteid );
     del_remote_key( $hostname, $def{'remoteid'} );
 
-    my $failed_del = process_host_list( [$hostname] );
+    my $failed_del = process_host_list( [$hostname], 0, 0, 0, 0, 1 );
     if ($failed_del) {
         print "Failed to remove default key from '$hostname'.\n";
         return 1;
@@ -1202,7 +1204,7 @@ sub resolve_hostname {
 
     my @packed = gethostbyname($hostname)
       or die "Failed to resolve '$hostname'\n";
-    
+
     my @addresses = map { inet_ntoa($_) } @packed[ 4 .. $#packed ];
 
     my $address = $addresses[0];
@@ -1214,7 +1216,7 @@ sub resolve_hostname {
 }
 
 sub process_update_ipaddr {
-    my ($hostname, $ipaddr) = @_;
+    my ( $hostname, $ipaddr ) = @_;
 
     $hostname or die "Failed to provide hostname.\n";
     defined $ipaddr or die "Failed to provide IP address.\n";
