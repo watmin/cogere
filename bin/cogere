@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.7.3
+#: Version : 1.7.4
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -63,35 +63,36 @@ if ( !@ARGV ) {
 
 my %args;
 GetOptions(
-    'help'           => \$args{'help'},
-    'f|config'       => \$args{'config'},
-    'h|host=s@'      => \$args{'host'},
-    'r|reason=s'     => \$args{'reason'},
-    'rekey-hosts'    => \$args{'rekey-hosts'},
-    'add-host'       => \$args{'add-host'},
-    'del-host'       => \$args{'del-host'},
-    'hostname=s'     => \$args{'hostname'},
-    'ipaddr=s'       => \$args{'ipaddr'},
-    'username=s'     => \$args{'username'},
-    'g|group=s@'     => \$args{'group'},
-    'add-group'      => \$args{'add-group'},
-    'del-group'      => \$args{'del-group'},
-    'join-group'     => \$args{'join-group'},
-    'leave-group'    => \$args{'leave-group'},
-    'H|list-hosts'   => \$args{'list-hosts'},
-    'G|list-groups'  => \$args{'list-groups'},
-    'M|list-members' => \$args{'list-members'},
-    'a|all'          => \$args{'all'},
-    'F|fork=s'       => \$args{'fork'},
-    's|scp-source=s' => \$args{'scp-source'},
-    't|scp-target=s' => \$args{'scp-target'},
-    'scp-only'       => \$args{'scp-only'},
-    'default-key'    => \$args{'default-key'},
-    'new-default'    => \$args{'new-default'},
-    'show-default'   => \$args{'show-default'},
-    'cleanup'        => \$args{'cleanup'},
-    'command-file=s' => \$args{'command-file'},
-    'update-ipaddr'  => \$args{'update-ipaddr'},
+    'help'               => \$args{'help'},
+    'f|config'           => \$args{'config'},
+    'h|host=s@'          => \$args{'host'},
+    'r|reason=s'         => \$args{'reason'},
+    'rekey-hosts'        => \$args{'rekey-hosts'},
+    'add-host'           => \$args{'add-host'},
+    'del-host'           => \$args{'del-host'},
+    'hostname=s'         => \$args{'hostname'},
+    'ipaddr=s'           => \$args{'ipaddr'},
+    'username=s'         => \$args{'username'},
+    'g|group=s@'         => \$args{'group'},
+    'add-group'          => \$args{'add-group'},
+    'del-group'          => \$args{'del-group'},
+    'join-group'         => \$args{'join-group'},
+    'leave-group'        => \$args{'leave-group'},
+    'H|list-hosts'       => \$args{'list-hosts'},
+    'G|list-groups'      => \$args{'list-groups'},
+    'M|list-members'     => \$args{'list-members'},
+    'a|all'              => \$args{'all'},
+    'F|fork=s'           => \$args{'fork'},
+    's|scp-source=s'     => \$args{'scp-source'},
+    't|scp-target=s'     => \$args{'scp-target'},
+    'scp-only'           => \$args{'scp-only'},
+    'default-key'        => \$args{'default-key'},
+    'new-default'        => \$args{'new-default'},
+    'show-default'       => \$args{'show-default'},
+    'cleanup'            => \$args{'cleanup'},
+    'command-file=s'     => \$args{'command-file'},
+    'update-ipaddr'      => \$args{'update-ipaddr'},
+    'remove-fingerprint' => \$args{'remove-fingerprint'},
 ) or die "Invalid arguments. See $0 --help\n";
 
 if ( $args{'config'} ) {
@@ -152,6 +153,10 @@ if ( $args{'leave-group'} ) {
 }
 if ( $args{'cleanup'} ) {
     process_cleanup( $args{'hostname'} );
+    exit;
+}
+if ( $args{'remove-fingerprint'} ) {
+    process_remove_fingerprint( $args{'ipaddr'} );
     exit;
 }
 
@@ -245,6 +250,10 @@ Operations:
                      Requires --hostname
   --update-ipaddr  Updates the IP address for a given host
                      Requires --hostname
+  --remove-fingerprint
+                   Remove the fingerprint from the known_hosts file for the
+                     supplied IP address
+                     Requires --ipaddr
 
 Options:
   --help              Shows this output
@@ -1184,6 +1193,7 @@ sub process_cleanup {
     my ($hostname) = @_;
 
     $hostname or die "Failed to provide hostname.\n";
+    my %params = get_params($hostname);
 
     leave_all_groups($hostname);
     del_hosts_conf($hostname);
@@ -1208,7 +1218,7 @@ sub resolve_hostname {
     my ($hostname) = @_;
 
     my @packed = gethostbyname($hostname)
-      or die "Failed to resolve '$hostname'\n";
+      or warn "Failed to resolve '$hostname'\n" and return 0;
 
     my @addresses = map { inet_ntoa($_) } @packed[ 4 .. $#packed ];
 
@@ -1232,6 +1242,24 @@ sub process_update_ipaddr {
 
     $yaml->[0]{'hosts'}{$hostname}{'ipaddr'} = $ipaddr;
     $yaml->write($hosts_conf);
+
+    return;
+}
+
+sub process_remove_fingerprint {
+    my ($ipaddr) = @_;
+
+    $ipaddr or die "Failed to provide IP address.\n";
+
+    my $check = `$ssh_keygen -F $ipaddr`;
+    die "Failed to loopkup '$ipaddr' from known_hosts: $check\n" if ( $? > 0 );
+
+    if ($check) {
+        my $out = `$ssh_keygen -R $ipaddr 2>/dev/null`;
+        die "Failed to remove fingerprint for '$ipaddr': $out\n" if ( $? > 0 );
+
+        print "Removed fingerprint for '$ipaddr'.\n";
+    }
 
     return;
 }
