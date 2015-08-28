@@ -379,7 +379,7 @@ sub write_log {
         open my $handle, '>>', $log_file
           or die "Failed to open '$log_file': $!.\n";
         printf $handle "%s\nTime:     %s\nUser:     %s\nHosts:    %s\nReason:   %s\nCommands:\n%s;\n",
-          '#' x 80, $timestamp, $log{'user'}, join( ',', @{ $log{'hosts'} } ), $log{'message'},
+          '#' x 80, $timestamp, $log{'user'}, join( ', ', @{ $log{'hosts'} } ), $log{'message'},
           join( ";\n", @{ $log{'commands'} } );
         close $handle;
 
