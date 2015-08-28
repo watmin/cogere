@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.7.4
+#: Version : 1.7.5
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -194,6 +194,7 @@ if ( $args{'rekey-hosts'} ) {
 }
 
 if ( $args{'scp-source'} and $args{'scp-target'} and $args{'scp-only'} ) {
+    $args{'reason'} = "Copying $args{'scp-source'} to $args{'scp-target'}";
     @commands = ("scp $args{'scp-source'} $args{'scp-target'}");
 }
 
@@ -377,9 +378,9 @@ sub write_log {
 
         open my $handle, '>>', $log_file
           or die "Failed to open '$log_file': $!.\n";
-        printf $handle "%s\nTime:     %s\nUser:     %s\nHosts:    %s\nReason:   %s\nCommands:\n%s\n",
+        printf $handle "%s\nTime:     %s\nUser:     %s\nHosts:    %s\nReason:   %s\nCommands:\n%s;\n",
           '#' x 80, $timestamp, $log{'user'}, join( ',', @{ $log{'hosts'} } ), $log{'message'},
-          join( "\n", @{ $log{'commands'} } );
+          join( ";\n", @{ $log{'commands'} } );
         close $handle;
 
     }
