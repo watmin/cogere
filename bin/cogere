@@ -1313,6 +1313,11 @@ sub verify_host_key {
         return 1;
     }
 
+    if (!@remote_fingerprint) {
+        warn "Failed to retireve remote fingerprint for '$hostname ($ipaddr)'.\n";
+        return 1;
+    }
+
     my @_remote_hash = split /\s+/, $remote_fingerprint[0];
     my $remote_hash = $_remote_hash[$#_remote_hash];
 
