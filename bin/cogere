@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.7.5
+#: Version : 1.7.6
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -51,10 +51,7 @@ my %log = ( 'user' => $ENV{'SUDO_USER'} );
 my $def_base_dir = '/opt/sv/cogere';
 my $base_dir     = $def_base_dir;
 my $def_config   = "$base_dir/conf/cogere.conf";
-my (
-    $hosts_conf, $keys_dir, $genpass,  $ssh_keygen, $ssh_copy_id, $username, $log_type,
-    $logstash,   $log_file, $log_host, $log_port,   $log_proto,   $log_name, $default_key,
-);
+my ( $hosts_conf, $keys_dir, $genpass,  $ssh_binary, $ssh_keygen, $ssh_keyscan, $ssh_copy_id, $username, $log_type, $logstash,   $log_file, $log_host, $log_port,   $log_proto,   $log_name, $default_key, );
 
 if ( !@ARGV ) {
     help();
@@ -304,7 +301,9 @@ sub set_globals {
             case /^hosts_conf$/  { $hosts_conf  = "$base_dir/$val" }
             case /^keys_dir$/    { $keys_dir    = "$base_dir/$val" }
             case /^genpass$/     { $genpass     = $val }
+            case /^ssh$/         { $ssh_binary  = $val }
             case /^ssh_keygen$/  { $ssh_keygen  = $val }
+            case /^ssh_keyscan$/ { $ssh_keyscan = $val }
             case /^ssh_copy_id$/ { $ssh_copy_id = $val }
             case /^username$/    { $username    = $val }
             case /^log_type$/    { $log_type    = $val }
@@ -339,8 +338,12 @@ sub check_globals {
     $genpass or die "genpass is not defined.\n";
     die "genpass '$genpass' is not executable.\n" if !-x $genpass;
 
+    $ssh_binary or die "ssh is not defined.\n";
+    die "ssh '$ssh_binary' is not executable.\n" if !-x $ssh_binary;
     $ssh_keygen or die "ssh_keygen is not defined.\n";
     die "ssh-keygen '$ssh_keygen' is not executable.\n" if !-x $ssh_keygen;
+    $ssh_keyscan or die "ssh_keygen is not defined.\n";
+    die "ssh-keyscan '$ssh_keyscan' is not executable.\n" if !-x $ssh_keyscan;
     $ssh_copy_id or die "ssh_copy_id is not defined.\n";
     die "ssh-copy-id '$ssh_copy_id' is not executable.\n" if !-x $ssh_copy_id;
 
@@ -626,7 +629,12 @@ sub open_ssh {
         'default_stderr_fh' => $err_garb,
         'default_stdin_fh'  => $in_garb,
         'master_opts'       => [
-            -o => 'StrictHostKeyChecking=no',
+            -o => 'StrictHostKeyChecking=yes',
+            -o => 'CheckHostIP=yes',
+            -o => 'GSSAPIAuthentication=no',
+            -o => 'IdentitiesOnly=yes',
+            -o => 'PasswordAuthentication=no',
+            -o => 'PubkeyAuthentication=yes',
         ],
     );
 
@@ -646,6 +654,8 @@ sub run_commands {
         $params{'private'} = "$keys_dir/$hostname.$timestamp";
         $params{'public'}  = "$keys_dir/$hostname.$timestamp.pub";
     }
+
+    verify_host_key($hostname) and return 1;
 
     my $ssh = open_ssh( $hostname, %params );
     return 1 if $ssh == 1;
@@ -1260,6 +1270,42 @@ sub process_remove_fingerprint {
         die "Failed to remove fingerprint for '$ipaddr': $out\n" if ( $? > 0 );
 
         print "Removed fingerprint for '$ipaddr'.\n";
+    }
+
+    return;
+}
+
+sub verify_host_key {
+    my ($hostname) = @_;
+
+    my %params = get_params($hostname);
+    my $ipaddr = $params{'ipaddr'};
+
+    my @local_fingerprint = `$ssh_keygen -H -F $ipaddr`;
+
+    if ( scalar @local_fingerprint > 2 ) {
+        warn "Duplicate fingerprints found for '$hostname ($ipaddr)'.\n";
+        return 1;
+    }
+    elsif (!@local_fingerprint) {
+        warn "No fingerprint found for '$hostname ($ipaddr)'.\n";
+    }
+
+    my ( $local_type, $local_hash, $remote_type );
+
+    my @_local_type = split /\s+/, $local_fingerprint[0];
+    $local_type = lc $_local_type[$#_local_type];
+
+    my @_local_hash = split /\s+/, $local_fingerprint[1];
+    $local_hash = $_local_hash[$#_local_hash];
+
+    my @remote_fingerprint = `$ssh_keyscan -t $local_type -H $ipaddr 2>/dev/null`;
+    my @_remote_hash = split /\s+/, $remote_fingerprint[0];
+    my $remote_hash = $_remote_hash[$#_remote_hash];
+
+    if ($local_hash ne $remote_hash) {
+        warn "Remote fingerprint changed on '$hostname ($ipaddr)'.\n";
+        return 1;
     }
 
     return;
