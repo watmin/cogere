@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.7.6
+#: Version : 1.7.7
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -51,10 +51,7 @@ my %log = ( 'user' => $ENV{'SUDO_USER'} );
 my $def_base_dir = '/opt/sv/cogere';
 my $base_dir     = $def_base_dir;
 my $def_config   = "$base_dir/conf/cogere.conf";
-my (
-    $hosts_conf, $keys_dir, $genpass,  $ssh_binary, $ssh_keygen, $ssh_keyscan, $ssh_copy_id, $username,
-    $log_type,   $logstash, $log_file, $log_host,   $log_port,   $log_proto,   $log_name,    $default_key,
-);
+my ( $hosts_conf, $keys_dir, $genpass,  $ssh_cmd, $scp_cmd, $ssh_keygen, $ssh_keyscan, $ssh_copy_id, $username, $log_type,   $logstash, $log_file, $log_host,   $log_port,   $log_proto,   $log_name,    $default_key, );
 
 if ( !@ARGV ) {
     help();
@@ -304,7 +301,8 @@ sub set_globals {
             case /^hosts_conf$/  { $hosts_conf  = "$base_dir/$val" }
             case /^keys_dir$/    { $keys_dir    = "$base_dir/$val" }
             case /^genpass$/     { $genpass     = $val }
-            case /^ssh$/         { $ssh_binary  = $val }
+            case /^ssh$/         { $ssh_cmd     = $val }
+            case /^scp$/         { $scp_cmd     = $val }
             case /^ssh_keygen$/  { $ssh_keygen  = $val }
             case /^ssh_keyscan$/ { $ssh_keyscan = $val }
             case /^ssh_copy_id$/ { $ssh_copy_id = $val }
@@ -341,8 +339,10 @@ sub check_globals {
     $genpass or die "genpass is not defined.\n";
     die "genpass '$genpass' is not executable.\n" if !-x $genpass;
 
-    $ssh_binary or die "ssh is not defined.\n";
-    die "ssh '$ssh_binary' is not executable.\n" if !-x $ssh_binary;
+    $ssh_cmd or die "ssh is not defined.\n";
+    die "ssh '$ssh_cmd' is not executable.\n" if !-x $ssh_cmd;
+    $scp_cmd or die "scp is not defined.\n";
+    die "scp '$scp_cmd' is not executable.\n" if !-x $scp_cmd;
     $ssh_keygen or die "ssh_keygen is not defined.\n";
     die "ssh-keygen '$ssh_keygen' is not executable.\n" if !-x $ssh_keygen;
     $ssh_keyscan or die "ssh_keygen is not defined.\n";
@@ -631,6 +631,8 @@ sub open_ssh {
         'default_stdout_fh' => $out_garb,
         'default_stderr_fh' => $err_garb,
         'default_stdin_fh'  => $in_garb,
+        'ssh_cmd'           => $ssh_cmd,
+        'scp_cmd'           => $scp_cmd,
         'master_opts'       => [
             -o => 'StrictHostKeyChecking=yes',
             -o => 'CheckHostIP=yes',
