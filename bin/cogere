@@ -1285,6 +1285,10 @@ sub verify_host_key {
     my $ipaddr = $params{'ipaddr'};
 
     my @local_fingerprint = `$ssh_keygen -H -F $ipaddr`;
+    if ( $? > 0 ) {
+        warn "Failed to lookup local fingerprint for '$hostname ($ipaddr)'.\n";
+        return 1;
+    }
 
     if ( scalar @local_fingerprint > 2 ) {
         warn "Duplicate fingerprints found for '$hostname ($ipaddr)'.\n";
@@ -1292,6 +1296,7 @@ sub verify_host_key {
     }
     elsif ( !@local_fingerprint ) {
         warn "No fingerprint found for '$hostname ($ipaddr)'.\n";
+        return 1;
     }
 
     my ( $local_type, $local_hash, $remote_type );
@@ -1303,8 +1308,13 @@ sub verify_host_key {
     $local_hash = $_local_hash[$#_local_hash];
 
     my @remote_fingerprint = `$ssh_keyscan -t $local_type -H $ipaddr 2>/dev/null`;
-    my @_remote_hash       = split /\s+/, $remote_fingerprint[0];
-    my $remote_hash        = $_remote_hash[$#_remote_hash];
+    if ( $? > 0 ) {
+        warn "Failed to lookup remote fingerprint for '$hostname ($ipaddr)'.\n";
+        return 1;
+    }
+
+    my @_remote_hash = split /\s+/, $remote_fingerprint[0];
+    my $remote_hash = $_remote_hash[$#_remote_hash];
 
     if ( $local_hash ne $remote_hash ) {
         warn "Remote fingerprint changed on '$hostname ($ipaddr)'.\n";
