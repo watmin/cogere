@@ -51,7 +51,10 @@ my %log = ( 'user' => $ENV{'SUDO_USER'} );
 my $def_base_dir = '/opt/sv/cogere';
 my $base_dir     = $def_base_dir;
 my $def_config   = "$base_dir/conf/cogere.conf";
-my ( $hosts_conf, $keys_dir, $genpass,  $ssh_binary, $ssh_keygen, $ssh_keyscan, $ssh_copy_id, $username, $log_type, $logstash,   $log_file, $log_host, $log_port,   $log_proto,   $log_name, $default_key, );
+my (
+    $hosts_conf, $keys_dir, $genpass,  $ssh_binary, $ssh_keygen, $ssh_keyscan, $ssh_copy_id, $username,
+    $log_type,   $logstash, $log_file, $log_host,   $log_port,   $log_proto,   $log_name,    $default_key,
+);
 
 if ( !@ARGV ) {
     help();
@@ -1287,7 +1290,7 @@ sub verify_host_key {
         warn "Duplicate fingerprints found for '$hostname ($ipaddr)'.\n";
         return 1;
     }
-    elsif (!@local_fingerprint) {
+    elsif ( !@local_fingerprint ) {
         warn "No fingerprint found for '$hostname ($ipaddr)'.\n";
     }
 
@@ -1300,10 +1303,10 @@ sub verify_host_key {
     $local_hash = $_local_hash[$#_local_hash];
 
     my @remote_fingerprint = `$ssh_keyscan -t $local_type -H $ipaddr 2>/dev/null`;
-    my @_remote_hash = split /\s+/, $remote_fingerprint[0];
-    my $remote_hash = $_remote_hash[$#_remote_hash];
+    my @_remote_hash       = split /\s+/, $remote_fingerprint[0];
+    my $remote_hash        = $_remote_hash[$#_remote_hash];
 
-    if ($local_hash ne $remote_hash) {
+    if ( $local_hash ne $remote_hash ) {
         warn "Remote fingerprint changed on '$hostname ($ipaddr)'.\n";
         return 1;
     }
