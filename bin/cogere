@@ -634,7 +634,7 @@ sub open_ssh {
         'ssh_cmd'           => $ssh_cmd,
         'scp_cmd'           => $scp_cmd,
         'master_opts'       => [
-            -o => 'StrictHostKeyChecking=yes',
+            -o => 'StrictHostKeyChecking=no',
             -o => 'CheckHostIP=yes',
             -o => 'GSSAPIAuthentication=no',
             -o => 'IdentitiesOnly=yes',
