@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.7.7
+#: Version : 1.7.8
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -51,7 +51,11 @@ my %log = ( 'user' => $ENV{'SUDO_USER'} );
 my $def_base_dir = '/opt/sv/cogere';
 my $base_dir     = $def_base_dir;
 my $def_config   = "$base_dir/conf/cogere.conf";
-my ( $hosts_conf, $keys_dir, $genpass,  $ssh_cmd, $scp_cmd, $ssh_keygen, $ssh_keyscan, $ssh_copy_id, $username, $log_type,   $logstash, $log_file, $log_host,   $log_port,   $log_proto,   $log_name,    $default_key, );
+my (
+    $hosts_conf,  $keys_dir,    $genpass,   $ssh_cmd,  $scp_cmd,  $ssh_keygen,
+    $ssh_keyscan, $ssh_copy_id, $username,  $log_type, $logstash, $log_file,
+    $log_host,    $log_port,    $log_proto, $log_name, $default_key,
+);
 
 if ( !@ARGV ) {
     help();
@@ -583,8 +587,8 @@ sub del_remote_key {
 
     my %params = get_params($hostname);
     $params{'remoteid'} = $remoteid if $remoteid;
-    @commands           = ("sed -i '/$params{'remoteid'}\$/d' /home/$params{'username'}/.ssh/authorized_keys");
-    $args{'reason'}     = "Removing SSH key from $hostname";
+    @commands = ("sed -i '/$params{'remoteid'}\$/d' /home/$params{'username'}/.ssh/authorized_keys");
+    $args{'reason'} = "Removing SSH key from $hostname";
 
     return;
 }
@@ -635,7 +639,7 @@ sub open_ssh {
         'scp_cmd'           => $scp_cmd,
         'master_opts'       => [
             -o => 'StrictHostKeyChecking=no',
-            -o => 'CheckHostIP=yes',
+            -o => 'CheckHostIP=no',
             -o => 'GSSAPIAuthentication=no',
             -o => 'IdentitiesOnly=yes',
             -o => 'PasswordAuthentication=no',
@@ -652,7 +656,7 @@ sub open_ssh {
 }
 
 sub run_commands {
-    my ( $hostname, $timestamp, $scp_source, $scp_target, $scp_only ) = @_;
+    my ( $hostname, $timestamp, $scp_source, $scp_target, $scp_only, $default ) = @_;
 
     my %params = get_params($hostname);
     if ($timestamp) {
@@ -660,7 +664,9 @@ sub run_commands {
         $params{'public'}  = "$keys_dir/$hostname.$timestamp.pub";
     }
 
-    verify_host_key($hostname) and return 1;
+    if (!$default) {
+        verify_host_key($hostname) and return 1;
+    }
 
     my $ssh = open_ssh( $hostname, %params );
     return 1 if $ssh == 1;
@@ -735,7 +741,7 @@ sub perform_scp {
 }
 
 sub process_host_list {
-    my ( $host_list, $timestamp, $scp_file, $scp_target, $scp_only, $stop ) = @_;
+    my ( $host_list, $timestamp, $scp_file, $scp_target, $scp_only, $stop, $default ) = @_;
 
     $timestamp = 0 if !$timestamp;
 
@@ -764,7 +770,7 @@ sub process_host_list {
     }
     else {
         for my $hostname (@hosts) {
-            my $failure = run_commands( $hostname, $timestamp, $scp_file, $scp_target, $scp_only );
+            my $failure = run_commands( $hostname, $timestamp, $scp_file, $scp_target, $scp_only, $default );
             if ( $failure and $stop ) {
                 return 1;
             }
@@ -1179,7 +1185,7 @@ sub key_from_default {
 
     add_remote_key($hostname);
 
-    my $failed_add = process_host_list( [$hostname], $timestamp, 0, 0, 0, 1 );
+    my $failed_add = process_host_list( [$hostname], $timestamp, 0, 0, 0, 1, 1 );
     if ($failed_add) {
         print "Failed to add new key to '$hostname'.\n";
         process_cleanup($hostname);
@@ -1315,7 +1321,7 @@ sub verify_host_key {
         return 1;
     }
 
-    if (!@remote_fingerprint) {
+    if ( !@remote_fingerprint ) {
         warn "Failed to retireve remote fingerprint for '$hostname ($ipaddr)'.\n";
         return 1;
     }
