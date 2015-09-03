@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.7.8
+#: Version : 1.7.9
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -289,6 +289,7 @@ Notes:
 
 John Shields - SmartVault Corporation - 2015
 EOH
+    return;
 }
 
 sub set_globals {
@@ -500,8 +501,8 @@ sub gen_key {
 
     my ( $password, $remoteid ) = @lines;
 
-    `$ssh_keygen -q -b 4096 -t rsa -P "$password" -C "$remoteid" -f "$keys_dir/$hostname"`;
-    die "Failed to generate SSH keys for '$hostname': $!.\n" if ( $? > 0 );
+    my $out = `$ssh_keygen -q -b 4096 -t rsa -P "$password" -C "$remoteid" -f "$keys_dir/$hostname"`;
+    die "Failed to generate SSH keys for '$hostname': $out.\n" if ( $? > 0 );
 
     chmod 0600, "$keys_dir/$hostname", "$keys_dir/$hostname.pub"
       or die "Failed to correct permissions on '$keys_dir/$hostname', '$keys_dir/$hostname.pub': $!.\n";
@@ -664,7 +665,7 @@ sub run_commands {
         $params{'public'}  = "$keys_dir/$hostname.$timestamp.pub";
     }
 
-    if (!$default) {
+    if ( !$default ) {
         verify_host_key($hostname) and return 1;
     }
 
