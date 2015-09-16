@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.7.10
+#: Version : 1.7.11
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -720,14 +720,14 @@ sub run_commands {
 }
 
 sub fork_hosts {
-    my ( $hosts, $timestamp, $scp_file, $scp_target ) = @_;
+    my ( $hosts, $timestamp, $scp_source, $scp_target, $scp_only, $scp_mkdir ) = @_;
 
     my $pm = Parallel::ForkManager->new($fork_num);
   HOSTS:
     for my $hostname ( @{$hosts} ) {
         $pm->start and next HOSTS;
 
-        run_commands( $hostname, $timestamp, $scp_file, $scp_target );
+        run_commands( $hostname, $timestamp, $scp_source, $scp_target, $scp_only, undef, $scp_mkdir );
 
         $pm->finish;
     }
@@ -798,7 +798,7 @@ sub process_host_list {
         elsif ( $fork_num !~ /\d+/ ) {
             die "Fork argument '$fork_num' is invalid\n";
         }
-        fork_hosts( [@hosts], $timestamp, $scp_file, $scp_target, $scp_only );
+        fork_hosts( [@hosts], $timestamp, $scp_file, $scp_target, $scp_only, $scp_mkdir );
     }
     else {
         for my $hostname (@hosts) {
@@ -887,16 +887,16 @@ sub process_del_host {
     my %params = get_params($hostname);
 
     leave_all_groups($hostname);
-    del_remote_key($hostname);
+    del_remote_key( $hostname, undef );
 
-    my $failure = process_host_list( [$hostname], 0, 0, 0, 0, 1 );
+    my $failure = process_host_list( [$hostname], undef, undef, undef, undef, 1, undef, undef );
     if ($failure) {
         print "Failed to delete remote key from '$hostname'\n";
         process_cleanup($hostname);
         return 1;
     }
 
-    del_hosts_conf($hostname);
+    del_hosts_conf( $hostname, undef );
 
     print "Successfully deleted '$hostname'\n";
 
@@ -920,11 +920,11 @@ sub process_rekey_host {
         my $timestamp = backup_key($hostname);
         my ( $password, $remoteid ) = gen_key($hostname);
         add_remote_key($hostname);
-        process_host_list( [$hostname], $timestamp );
+        process_host_list( [$hostname], $timestamp, undef, undef, undef, undef, undef, undef );
         del_hosts_conf( $hostname, $timestamp );
         add_hosts_conf( $hostname, $params{'username'}, $params{'ipaddr'}, $password, $remoteid );
         del_remote_key( $hostname, $params{'remoteid'} );
-        process_host_list( [$hostname] );
+        process_host_list( [$hostname], undef, undef, undef, undef, undef, undef, undef );
 
         print "Successfully rekeyed '$hostname'\n";
     }
@@ -1218,7 +1218,7 @@ sub key_from_default {
 
     add_remote_key($hostname);
 
-    my $failed_add = process_host_list( [$hostname], $timestamp, 0, 0, 0, 1, 1 );
+    my $failed_add = process_host_list( [$hostname], $timestamp, undef, undef, undef, 1, 1, undef );
     if ($failed_add) {
         print "Failed to add new key to '$hostname'.\n";
         process_cleanup($hostname);
@@ -1229,7 +1229,7 @@ sub key_from_default {
     add_hosts_conf( $hostname, $params{'username'}, $params{'ipaddr'}, $password, $remoteid );
     del_remote_key( $hostname, $def{'remoteid'} );
 
-    my $failed_del = process_host_list( [$hostname], 0, 0, 0, 0, 1 );
+    my $failed_del = process_host_list( [$hostname], undef, undef, undef, undef, 1, undef, undef );
     if ($failed_del) {
         print "Failed to remove default key from '$hostname'.\n";
         return 1;
@@ -1251,7 +1251,7 @@ sub process_cleanup {
     my %params = get_params($hostname);
 
     leave_all_groups($hostname);
-    del_hosts_conf($hostname);
+    del_hosts_conf( $hostname, undef );
 
     return;
 }
