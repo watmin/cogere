@@ -86,6 +86,7 @@ GetOptions(
     'F|fork=s'           => \$args{'fork'},
     's|scp-source=s'     => \$args{'scp-source'},
     't|scp-target=s'     => \$args{'scp-target'},
+    'scp-mkdir=s'        => \$args{'scp-mkdir'},
     'scp-only'           => \$args{'scp-only'},
     'default-key'        => \$args{'default-key'},
     'new-default'        => \$args{'new-default'},
@@ -194,9 +195,18 @@ if ( $args{'rekey-hosts'} ) {
     exit;
 }
 
+if ( $args{'scp-mkdir'} ) {
+    $args{'scp-target'} = $args{'scp-mkdir'};
+}
+
 if ( $args{'scp-source'} and $args{'scp-target'} and $args{'scp-only'} ) {
     $args{'reason'} = "Copying $args{'scp-source'} to $args{'scp-target'}";
     @commands = ("scp $args{'scp-source'} $args{'scp-target'}");
+
+    if ( $args{'scp-mkdir'} ) {
+        $args{'reason'} = sprintf "%s %s", "Creating directory $args{'scp-mkdir'}.",
+          $args{'reason'};
+    }
 }
 
 if ( $args{'command-file'} ) {
@@ -204,7 +214,8 @@ if ( $args{'command-file'} ) {
 }
 
 if (@target_hosts) {
-    process_host_list( [@target_hosts], 0, $args{'scp-source'}, $args{'scp-target'}, $args{'scp-only'} );
+    process_host_list( [@target_hosts], undef, $args{'scp-source'}, $args{'scp-target'}, $args{'scp-only'}, undef,
+      undef, $args{'scp-mkdir'} );
     exit;
 }
 else {
@@ -245,6 +256,8 @@ Operations:
                      Requires -t|--scp-target
   -t|--scp-target  Performs an scp to target remote directory
                      Requires -s|--scp-file
+  --scp-mkdir      Creates a new directory on the remote server
+                     Overwrites --scp-target
   --scp-only       Only copy files to remote hosts
   --new-default    Create a new default SSH key
   --show-default   Prints the default public key
@@ -657,7 +670,7 @@ sub open_ssh {
 }
 
 sub run_commands {
-    my ( $hostname, $timestamp, $scp_source, $scp_target, $scp_only, $default ) = @_;
+    my ( $hostname, $timestamp, $scp_source, $scp_target, $scp_only, $default, $scp_mkdir ) = @_;
 
     my %params = get_params($hostname);
     if ($timestamp) {
@@ -673,7 +686,7 @@ sub run_commands {
     return 1 if $ssh == 1;
 
     if ( $scp_source and $scp_target ) {
-        my $copy_failed = perform_scp( $scp_source, $scp_target, $ssh );
+        my $copy_failed = perform_scp( $scp_source, $scp_target, $ssh, $hostname, $scp_mkdir );
         if ($copy_failed) {
             warn "Failed to copy source to '$hostname'.\n";
             return 1;
@@ -724,11 +737,29 @@ sub fork_hosts {
 }
 
 sub perform_scp {
-    my ( $source, $target, $ssh ) = @_;
+    my ( $source, $target, $ssh, $hostname, $mkdir ) = @_;
 
-    if ( !-d $source and !-f $source ) {
-        warn "Cannot copy '$source', source is neither a file nor a directory.\n";
-        return 1;
+    if ( !-d $source and !-f $source ) {                                                                                
+        warn "Cannot copy '$source', source is neither a file nor a directory.\n";                                      
+        return 1;                                                                                                       
+    }
+
+    if ( $mkdir ) {
+        my ( $out, $pid ) = $ssh->pipe_out("mkdir -pv '$target'");
+
+        if ( $ssh->error ) {
+            warn "Failed to open command pipe on '$hostname': ${\$ssh->error}.\n";
+            return 1;
+        }
+
+        my $line;
+        while ( $line = <$out> ) {
+            if ($fork_num) {
+                $line = "[$hostname] $line";
+            }
+            print $line;
+        }
+        close $out;
     }
 
     $ssh->scp_put( { 'recursive' => 1 }, $source, $target );
@@ -742,7 +773,7 @@ sub perform_scp {
 }
 
 sub process_host_list {
-    my ( $host_list, $timestamp, $scp_file, $scp_target, $scp_only, $stop, $default ) = @_;
+    my ( $host_list, $timestamp, $scp_file, $scp_target, $scp_only, $stop, $default, $scp_mkdir ) = @_;
 
     $timestamp = 0 if !$timestamp;
 
@@ -771,7 +802,8 @@ sub process_host_list {
     }
     else {
         for my $hostname (@hosts) {
-            my $failure = run_commands( $hostname, $timestamp, $scp_file, $scp_target, $scp_only, $default );
+            my $failure = run_commands( $hostname, $timestamp, $scp_file, $scp_target,
+              $scp_only, $default, $scp_mkdir );
             if ( $failure and $stop ) {
                 return 1;
             }
