@@ -34,9 +34,11 @@ Operations:
   --leave-group    Remove hosts from an existing group.
                      Requires -g|--group, -h|--host
   -s|--scp-source  Performs an scp on local file or directory
-                     Requires -t|--scp-target
+                     Requires -t|--scp-target or --scp-mkdir
   -t|--scp-target  Performs an scp to target remote directory
-                     Requires -s|--scp-file
+                     Requires -s|--scp-source
+  --scp-mkdir      Creates a new directory on the remote server
+                     Overrides --scp-target
   --scp-only       Only copy files to remote hosts
   --new-default    Create a new default SSH key
   --show-default   Prints the default public key
@@ -44,6 +46,10 @@ Operations:
                      Requires --hostname
   --update-ipaddr  Updates the IP address for a given host
                      Requires --hostname
+  --remove-fingerprint
+                   Remove the fingerprint from the known_hosts file for the
+                     supplied IP address
+                     Requires --ipaddr
 
 Options:
   --help              Shows this output
@@ -465,10 +471,39 @@ To update an existing host to use DNS set the IP address to 0.
 Example:
 
 ```
-cogere --update-ipaddr --hostname watministrator.net --ipaddr 0
+$ cogere --update-ipaddr --hostname watministrator.net --ipaddr 0
 ```
 
 New hosts can be looked up by DNS by simply witholding the `--ipaddr` switch when being added.
 
+###### Creating a directory to be used with scp
+
+A new directory can be created with `--scp-mkdir` before performing an scp allowing you to programmatically use the new directory and its contents.
+
+Example:
+
+```
+$ epoch=$(date +%s); \
+mkdir copy-me.${epoch}; \
+touch copy-me.${epoch}/touched.{0..9}.txt; \
+cogere -r 'mkdir demo' -h arbitrium.watministrator.net \
+--scp-mkdir '/home/cogere/copy-me/' \
+--scp-source copy-me.${epoch} \
+"ls -l /home/cogere/copy-me/copy-me.${epoch}"
+mkdir: created directory ‘/home/cogere/copy-me/’
+total 0
+-rw-r--r-- 1 cogere cogere 0 Sep 16 10:56 touched.0.txt
+-rw-r--r-- 1 cogere cogere 0 Sep 16 10:56 touched.1.txt
+-rw-r--r-- 1 cogere cogere 0 Sep 16 10:56 touched.2.txt
+-rw-r--r-- 1 cogere cogere 0 Sep 16 10:56 touched.3.txt
+-rw-r--r-- 1 cogere cogere 0 Sep 16 10:56 touched.4.txt
+-rw-r--r-- 1 cogere cogere 0 Sep 16 10:56 touched.5.txt
+-rw-r--r-- 1 cogere cogere 0 Sep 16 10:56 touched.6.txt
+-rw-r--r-- 1 cogere cogere 0 Sep 16 10:56 touched.7.txt
+-rw-r--r-- 1 cogere cogere 0 Sep 16 10:56 touched.8.txt
+-rw-r--r-- 1 cogere cogere 0 Sep 16 10:56 touched.9.txt
+```
+
 ### To do's
 - Version 2.0 - Breaking up the script into several libraries resulting in a small binary/script
+- Version 2.0 - Clean up argument passing with one argument hash

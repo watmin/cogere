@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.7.9
+#: Version : 1.7.10
 #: Path    : /opt/sv/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
@@ -253,11 +253,11 @@ Operations:
   --leave-group    Remove hosts from an existing group.
                      Requires -g|--group, -h|--host
   -s|--scp-source  Performs an scp on local file or directory
-                     Requires -t|--scp-target
+                     Requires -t|--scp-target or --scp-mkdir
   -t|--scp-target  Performs an scp to target remote directory
-                     Requires -s|--scp-file
+                     Requires -s|--scp-source
   --scp-mkdir      Creates a new directory on the remote server
-                     Overwrites --scp-target
+                     Overrides --scp-target
   --scp-only       Only copy files to remote hosts
   --new-default    Create a new default SSH key
   --show-default   Prints the default public key
