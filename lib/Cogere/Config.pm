@@ -347,7 +347,7 @@ sub _set_var {
         case /^log_file$/     { $self->log_file($val) }
         case /^log_host$/     { $self->log_host($val) }
         case /^log_port$/     { $self->log_port($val) }
-        case /^log_proto$/    { $self->log_protp($val) }
+        case /^log_proto$/    { $self->log_proto($val) }
         case /^log_app_name$/ { $self->log_app_name($val) }
         else                  { carp "The configuration paramater '$var' is not recognized" }
     }
