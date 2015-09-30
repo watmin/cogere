@@ -4,13 +4,13 @@ _cogere() {
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
-    opts="-h --host --add-host --del-host --rekey-hosts -g --group 
-          --add-group --del-group --join-group --leave-group --help
+    opts="-h --host --new-host --del-host --rekey-hosts -g --group 
+          --new-group --del-group --join-group --leave-group --help
           -f --config --hostname --ipaddr --username -r --reason
           -a --all -H --list-hosts -G --list-groups -M --list-members
-          -s --scp-file -t --scp-target --scp-only --command-file 
-          --new-default --show-default --default-key --cleanup
-          --update-ipaddr"
+          -s --scp-file -t --scp-target --scp-only --commands-file 
+          --new-default --show-default --default-key --cleanup-hosts
+          --update --scp-mkdir --remove-fingerprint --port -F --fork"
 
     case "${prev}" in
             -h|--host)

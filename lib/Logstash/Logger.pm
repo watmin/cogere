@@ -1,40 +1,39 @@
-package SV::Logger;
-use strict;
-use warnings;
+package Logstash::Logger;
 
 use Sys::Hostname;
 use IO::Socket::INET;
 use Time::Piece;
 use JSON;
+use Carp;
 
 sub new {
-    my ($class, %params) = @_;
+    my ($class, %params) = @_; 
 
     # Defaults
     $params{host}     = '127.0.0.1' unless $params{host};
     $params{port}     = '12345'     unless $params{port};
     $params{protocol} = 'tcp'       unless $params{protocol};
-    $params{app}      = 'sv-logger' unless $params{app};
+    $params{app}      = 'logger'    unless $params{app};
 
-    my $self = {
+    my $self = { 
       _host     => $params{host},
       _port     => $params{port},
       _protocol => $params{protocol},
       _app      => $params{app},
-    };
+    };  
 
     return bless($self, $class);
 }
 
 sub write {
-    my ($self, $input) = @_;
+    my ($self, $input) = @_; 
 
     my $logstash = new IO::Socket::INET (
-      PeerHost => $self->{_host},
-      PeerPort => $self->{_port},
-      Proto    => $self->{_protocol},
-      Timeout  => 2,
-    ) or die "[!] Failed to connect: $@\n";
+        PeerHost => $self->{_host},
+        PeerPort => $self->{_port},
+        Proto    => $self->{_protocol},
+        Timeout  => 2,
+    ) or croak "Logstash::Logger failed to connect: $@\n";
 
     my $json_o = JSON->new->utf8;
     $json_o->convert_blessed(1);

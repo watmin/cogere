@@ -13,8 +13,8 @@ Operations:
   -h|--host        Host to connect to, can be provided multiple times. Commands
                      are executed on hosts if no other operations provided.
                      Requires -r|--reason
-  --add-host       Creates new host entry and keys remote host.
-                     Requires --hostname. Optionally --ipaddr, --username
+  --new-host       Creates new host entry and keys remote host.
+                     Requires --hostname. Optionally --ipaddr --username --port
                      Optionally can use --default-key to connect using
                      default SSH key rather than password authentication
   --del-host       Removes host entry and remove key from remote host
@@ -25,7 +25,7 @@ Operations:
   -g|--group       Group to connect to, can be provided multiple times. Commands
                      are executed on groups if no other operations provided.
                      Requires -r|--reason
-  --add-group      Creates new group of hosts.
+  --new-group      Creates new group of hosts.
                      Requires -g|--group, -h|--host
   --del-group      Delete group.
                      Requires -g|--group
@@ -37,28 +37,31 @@ Operations:
                      Requires -t|--scp-target or --scp-mkdir
   -t|--scp-target  Performs an scp to target remote directory
                      Requires -s|--scp-source
-  --scp-mkdir      Creates a new directory on the remote server
-                     Overrides --scp-target
+  --scp-mkdir      Creates target directory on the remote server
   --scp-only       Only copy files to remote hosts
   --new-default    Create a new default SSH key
   --show-default   Prints the default public key
-  --cleanup        Removes all entries for supplied host
-                     Requires --hostname
-  --update-ipaddr  Updates the IP address for a given host
+  --cleanup-host   Removes all entries for supplied host
                      Requires --hostname
   --remove-fingerprint
                    Remove the fingerprint from the known_hosts file for the
-                     supplied IP address
-                     Requires --ipaddr
+                     supplied hostname
+                     Requires --hostname
 
 Options:
   --help              Shows this output
   -f|--config         Alternate configuration file
-  --command-file      Execute commands provided by command-file
-  --hostname          Hostname to be provided to --add-host or --del-host
-  --ipaddr            IP address to be provided to --add-host
-  --username          User name to be provided to --add-host
+  --commands-file     Execute commands provided by commands-file
+  --hostname          Hostname to be provided to --new-host or --del-host
+  --ipaddr            IP address to be provided to --new-host
+                        Optional, DNS will be used if not provided
+  --username          User name to be provided to --new-host
                         Optional, 'cogere' is used by default
+  --port              SSH port to connect to
+                        Optional, '22' is used by default
+  --update            Updates a field in the hosts configuration
+                        Requires --hostname.
+                        Accepts --ipaddr, --port, --username.
   --default-key       Uses the default SSH key rather than password
                         when adding host
   -r|--reason         Explanation of the commands you are running
@@ -78,8 +81,6 @@ Notes:
   Mulitple commands:
     Multiple commands can be specified as arguments, they will
     be ran in sequence
-  Hostname resolution
-    Setting a hostname's IP address to 0 will force DNS lookups
 
 John Shields - SmartVault Corporation - 2015
 ```
@@ -135,17 +136,17 @@ arbitrium.jar00n.net
 cognitio.watministrator.net
 ```
 
-###### --add-host
+###### --new-host
 
 Adds the supplied host to the hosts configuration. The command must be provided `--hostname` and `--ipaddr` containing the hostname and IP address of the node. Optionally takes a `--username`, the default username is cogere. You may also supply the `--default-key` switch if the remote host is already keyed. This will rekey the host and does not prompt for a password.
 
-**REQUIRES `--hostname`, `--ipaddr`**
+**REQUIRES `--hostname`**
 
-**OPTIONAL `--username`,`--default-key`**
+**OPTIONAL `--username`, `--ipaddr`, `--port`, `--default-key`**
 
 Example:
 ```
-$ cogere --add-host --hostname cognitio --ipaddr 172.16.0.6
+$ cogere --new-host --hostname cognitio --ipaddr 172.16.0.6
 /usr/bin/ssh-copy-id: INFO: attempting to log in with the new key(s), to filter out any that are already installed
 /usr/bin/ssh-copy-id: INFO: 1 key(s) remain to be installed -- if you are prompted now it is to install the new keys
 WARNING : Unauthorized access to this system is forbidden and will be
@@ -167,7 +168,7 @@ Example:
 $ cogere --del-host --hostname cognitio
 ```
 
-###### --add-group
+###### --new-group
 
 Creates a new group using the supplied group name, adding members to the group from the provided host list
 
@@ -175,7 +176,7 @@ Creates a new group using the supplied group name, adding members to the group f
 
 Example:
 ```
-$ cogere --add-group --group moar-hosts --host arbitrium
+$ cogere --new-group --group moar-hosts --host arbitrium
 ```
 ###### --del-group
 
@@ -220,11 +221,15 @@ Allows for loading of a different configuration file. You likely won't ever use 
 
 ###### --hostname
 
-Provides hostname variable to `--add-host` or `--del-host`
+Provides hostname variable
 
 ###### --ipaddr
 
-Provides IP address variable to `--add-host` or `--del-host`
+Provides IP address variable
+
+###### --port
+
+Provides SSH port variable
 
 ###### --reason | -r
 
@@ -258,13 +263,13 @@ $ cogere -r 'forking' -a -F a \
 [arbitrium] 5
 ```
 
-###### --scp-source | -s , --scp-target | -t, --scp-only
+###### --scp-source | -s , --scp-target | -t, --scp-only, --scp-mkdir
 
-Performs an scp on source file or directory to target directory on remote host. If `--scp-only` is used no command will be executed and can be witheld entirely
+Performs an scp on source file or directory to target directory on remote host. If `--scp-only` is used no command will be executed and can be witheld entirely. If `--scp-mkdir` is supplied the target directory is created with `mkdir -pv $target` on the remote host.
 
 **REQUIRES `--scp-source|-s`, `--scp-target|-t`**
 
-**OPTIONALLY `--scp-only`**
+**OPTIONALLY `--scp-only`, `--scp-mkdir`**
 
 Example:
 ```
@@ -312,10 +317,10 @@ Uses the default SSH key when adding a host, requires the that public key is alr
 Example:
 
 ```
-$ cogere --add-host --hostname cognitio --ipaddr 172.16.0.6 --default-key
+$ cogere --new-host --hostname cognitio --ipaddr 172.16.0.6 --default-key
 ```
 
-###### --cleanup
+###### --cleanup-host
 
 Removes any host entries and keys on the local system for the provided hostname
 
@@ -471,7 +476,7 @@ To update an existing host to use DNS set the IP address to 0.
 Example:
 
 ```
-$ cogere --update-ipaddr --hostname watministrator.net --ipaddr 0
+$ cogere --update --hostname watministrator.net --ipaddr 0
 ```
 
 New hosts can be looked up by DNS by simply witholding the `--ipaddr` switch when being added.
@@ -487,7 +492,7 @@ $ epoch=$(date +%s); \
 mkdir copy-me.${epoch}; \
 touch copy-me.${epoch}/touched.{0..9}.txt; \
 cogere -r 'mkdir demo' -h arbitrium.watministrator.net \
---scp-mkdir '/home/cogere/copy-me/' \
+--scp-mkdir --scp-target '/home/cogere/copy-me/' \
 --scp-source copy-me.${epoch} \
 "ls -l /home/cogere/copy-me/copy-me.${epoch}"
 mkdir: created directory ‘/home/cogere/copy-me/’
@@ -505,5 +510,9 @@ total 0
 ```
 
 ### To do's
-- Version 2.0 - Breaking up the script into several libraries resulting in a small binary/script
-- Version 2.0 - Clean up argument passing with one argument hash
+- Add verbosity levels
+  - 1: output all cogere non set/get functions
+  - 2: output all cogere helper class functions
+  - 3: output all set/get functions
+- Fixup croak/carp messages to be more helpful
+- Allow scp to go from remote to local and use --scp-mkdir to create local directory, maybe

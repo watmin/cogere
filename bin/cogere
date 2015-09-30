@@ -1,12 +1,12 @@
 #!/usr/bin/perl
 #: Author  : John Shields <john.shields@smartvault.com>
 #: Name    : cogere.pl
-#: Version : 1.7.11
-#: Path    : /opt/sv/bin/cogere
+#: Version : 2.0.0
+#: Path    : /usr/bin/cogere
 #: Params  : see --help
 #: Desc    : Broadcasts commands to select hosts over SSH
 #: License :
-# Copyright (c) 2015 SmartVault, Inc.
+# Copyright (c) 2015 John Shields
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -31,196 +31,216 @@ use warnings;
 
 use FindBin;
 use lib "$FindBin::Bin/../lib";
-use SV::Logger;
+
+use Cogere;
+
 use Getopt::Long qw/:config no_ignore_case/;
-use Net::OpenSSH;
-use Switch;
-use JSON;
-use YAML::Tiny;
-use List::MoreUtils qw/uniq/;
-use POSIX qw/strftime/;
-use Parallel::ForkManager;
-use File::Copy qw/copy/;
-use Socket;
 
 die "Not being ran from sudo!\n" if !$ENV{'SUDO_USER'};
-
-my $json_o = JSON->new->utf8;
-my %log = ( 'user' => $ENV{'SUDO_USER'} );
-
-my $def_base_dir = '/opt/sv/cogere';
-my $base_dir     = $def_base_dir;
-my $def_config   = "$base_dir/conf/cogere.conf";
-my (
-    $hosts_conf,  $keys_dir,    $genpass,   $ssh_cmd,  $scp_cmd,  $ssh_keygen,
-    $ssh_keyscan, $ssh_copy_id, $username,  $log_type, $logstash, $log_file,
-    $log_host,    $log_port,    $log_proto, $log_name, $default_key,
-);
 
 if ( !@ARGV ) {
     help();
     exit;
 }
 
-my %args;
+my $default_config = '/opt/sv/cogere/cogere.conf';
+
+my %options;
 GetOptions(
-    'help'               => \$args{'help'},
-    'f|config'           => \$args{'config'},
-    'h|host=s@'          => \$args{'host'},
-    'r|reason=s'         => \$args{'reason'},
-    'rekey-hosts'        => \$args{'rekey-hosts'},
-    'add-host'           => \$args{'add-host'},
-    'del-host'           => \$args{'del-host'},
-    'hostname=s'         => \$args{'hostname'},
-    'ipaddr=s'           => \$args{'ipaddr'},
-    'username=s'         => \$args{'username'},
-    'g|group=s@'         => \$args{'group'},
-    'add-group'          => \$args{'add-group'},
-    'del-group'          => \$args{'del-group'},
-    'join-group'         => \$args{'join-group'},
-    'leave-group'        => \$args{'leave-group'},
-    'H|list-hosts'       => \$args{'list-hosts'},
-    'G|list-groups'      => \$args{'list-groups'},
-    'M|list-members'     => \$args{'list-members'},
-    'a|all'              => \$args{'all'},
-    'F|fork=s'           => \$args{'fork'},
-    's|scp-source=s'     => \$args{'scp-source'},
-    't|scp-target=s'     => \$args{'scp-target'},
-    'scp-mkdir=s'        => \$args{'scp-mkdir'},
-    'scp-only'           => \$args{'scp-only'},
-    'default-key'        => \$args{'default-key'},
-    'new-default'        => \$args{'new-default'},
-    'show-default'       => \$args{'show-default'},
-    'cleanup'            => \$args{'cleanup'},
-    'command-file=s'     => \$args{'command-file'},
-    'update-ipaddr'      => \$args{'update-ipaddr'},
-    'remove-fingerprint' => \$args{'remove-fingerprint'},
+    'help'               => \$options{'help'},
+    'f|config'           => \$options{'config'},
+    'h|host=s@'          => \$options{'host'},
+    'r|reason=s'         => \$options{'reason'},
+    'rekey-hosts'        => \$options{'rekey-hosts'},
+    'new-host'           => \$options{'new-host'},
+    'del-host'           => \$options{'del-host'},
+    'hostname=s'         => \$options{'hostname'},
+    'ipaddr=s'           => \$options{'ipaddr'},
+    'port=i'             => \$options{'port'},
+    'username=s'         => \$options{'username'},
+    'update'             => \$options{'update'},
+    'g|group=s@'         => \$options{'group'},
+    'new-group'          => \$options{'new-group'},
+    'del-group'          => \$options{'del-group'},
+    'join-group'         => \$options{'join-group'},
+    'leave-group'        => \$options{'leave-group'},
+    'H|list-hosts'       => \$options{'list-hosts'},
+    'G|list-groups'      => \$options{'list-groups'},
+    'M|list-members'     => \$options{'list-members'},
+    'a|all'              => \$options{'all'},
+    'F|fork=s'           => \$options{'fork'},
+    's|scp-source=s'     => \$options{'scp-source'},
+    't|scp-target=s'     => \$options{'scp-target'},
+    'scp-mkdir'          => \$options{'scp-mkdir'},
+    'scp-only'           => \$options{'scp-only'},
+    'default-key'        => \$options{'default-key'},
+    'show-default'       => \$options{'show-default'},
+    'new-default'        => \$options{'new-default'},
+    'cleanup-host'       => \$options{'cleanup-host'},
+    'commands-file=s'    => \$options{'commands-file'},
+    'remove-fingerprint' => \$options{'remove-fingerprint'},
 ) or die "Invalid arguments. See $0 --help\n";
 
-if ( $args{'config'} ) {
-    set_globals( $args{'config'} );
-}
-else {
-    set_globals($def_config);
-}
-
-check_globals();
-
-if ( $args{'help'} ) {
+if ( $options{'help'} ) { 
     help();
     exit;
 }
 
-if ( $args{'list-hosts'} ) {
-    process_list_hosts();
-    exit;
-}
-if ( $args{'list-groups'} ) {
-    process_list_groups();
-    exit;
-}
-if ( $args{'list-members'} ) {
-    process_list_members( $args{'group'} );
-    exit;
-}
-
-if ( $args{'show-default'} ) {
-    process_show_default();
-    exit;
-}
-
-if ( $args{'add-host'} ) {
-    process_add_host( $args{'hostname'}, $args{'ipaddr'}, $args{'username'}, $args{'default-key'}, $args{'group'} );
-    exit;
-}
-if ( $args{'del-host'} ) {
-    process_del_host( $args{'hostname'} );
-    exit;
-}
-if ( $args{'add-group'} ) {
-    process_add_group( $args{'group'}, $args{'host'} );
-    exit;
-}
-if ( $args{'del-group'} ) {
-    process_del_group( $args{'group'} );
-    exit;
-}
-if ( $args{'join-group'} ) {
-    process_join_group( $args{'group'}, $args{'host'} );
-    exit;
-}
-if ( $args{'leave-group'} ) {
-    process_leave_group( $args{'group'}, $args{'host'} );
-    exit;
-}
-if ( $args{'cleanup'} ) {
-    process_cleanup( $args{'hostname'} );
-    exit;
-}
-if ( $args{'remove-fingerprint'} ) {
-    process_remove_fingerprint( $args{'ipaddr'} );
-    exit;
-}
-
-if ( $args{'new-default'} ) {
-    process_new_default();
-    exit;
-}
-
-if ( $args{'update-ipaddr'} ) {
-    process_update_ipaddr( $args{'hostname'}, $args{'ipaddr'} );
-    exit;
-}
-
-my @target_hosts;
-my @negate_hosts;
-my @commands = @ARGV;
-my $fork_num = $args{'fork'};
-
-if ( $args{'all'} ) {
-    process_all();
-}
-if ( $args{'group'} ) {
-    process_group( $args{'group'} );
-}
-if ( $args{'host'} ) {
-    process_host( $args{'host'} );
-}
-
-process_negate();
-remove_default();
-
-if ( $args{'rekey-hosts'} ) {
-    process_rekey_host( [@target_hosts] );
-    exit;
-}
-
-if ( $args{'scp-mkdir'} ) {
-    $args{'scp-target'} = $args{'scp-mkdir'};
-}
-
-if ( $args{'scp-source'} and $args{'scp-target'} and $args{'scp-only'} ) {
-    $args{'reason'} = "Copying $args{'scp-source'} to $args{'scp-target'}";
-    @commands = ("scp $args{'scp-source'} $args{'scp-target'}");
-
-    if ( $args{'scp-mkdir'} ) {
-        $args{'reason'} = sprintf "%s %s", "Creating directory $args{'scp-mkdir'}.",
-          $args{'reason'};
-    }
-}
-
-if ( $args{'command-file'} ) {
-    process_command_file( $args{'command-file'} );
-}
-
-if (@target_hosts) {
-    process_host_list( [@target_hosts], undef, $args{'scp-source'}, $args{'scp-target'}, $args{'scp-only'}, undef,
-      undef, $args{'scp-mkdir'} );
-    exit;
+my $config;
+if ( defined $options{'config'} ) {
+    $config = $options{'config'};
 }
 else {
-    die "No hosts or operations provided. See $0 --help.\n";
+    $config = $default_config;
 }
+
+my %cogere_args = (
+    'user'   => $ENV{'SUDO_USER'},
+    'config' => $default_config,
+);
+my $cogere = Cogere->new(%cogere_args);
+
+if ( defined $options{'list-hosts'} ) {
+    $cogere->list_hosts;
+    exit;
+}
+
+if ( defined $options{'list-groups'} ) {
+    $cogere->list_groups;
+    exit;
+}
+
+if ( defined $options{'list-members'} ) {
+    $cogere->list_members( @{ $options{'group'} } );
+    exit;
+}
+
+if ( defined $options{'show-default'} ) {
+    $cogere->print_default_key;
+    exit;
+}
+
+if ( defined $options{'new-default'} ) {
+    $cogere->new_default_key;
+    exit;
+}
+
+if ( defined $options{'default-key'} ) {
+    $cogere->use_default_key(1);
+}
+
+if ( defined $options{'new-host'} ) {
+    $cogere->new_host(
+        'hostname' => $options{'hostname'},
+        'username' => $options{'username'},
+        'ipaddr'   => $options{'ipaddr'},
+        'port'     => $options{'port'},
+        'groups'   => $options{'group'},
+    );
+    exit;
+}
+
+if ( defined $options{'del-host'} ) {
+    $cogere->del_host( $options{'hostname'} );
+    exit;
+}
+
+if ( defined $options{'new-group'} ) {
+    $cogere->new_group(
+        'hosts'  => $options{'host'},
+        'groups' => $options{'group'},
+    );
+    exit;
+}
+
+if ( defined $options{'del-group'} ) {
+    $cogere->del_group( 'groups' => $options{'group'} );
+    exit;
+}
+
+if ( defined $options{'join-group'} ) {
+    $cogere->join_group(
+        'hosts'  => $options{'host'},
+        'groups' => $options{'group'},
+    );
+    exit;
+}
+
+if ( defined $options{'leave-group'} ) {
+    $cogere->leave_group(
+        'groups' => $options{'group'},
+        'hosts'  => $options{'host'},
+    );
+    exit;
+}
+
+if ( defined $options{'cleanup-host'} ) {
+    $cogere->cleanup_host( $options{'hostname'} );
+    exit;
+}
+
+if ( defined $options{'remove-fingerprint'} ) {
+    $cogere->remove_fingerprint( $options{'hostname'} );
+    exit;
+}
+
+if ( defined $options{'update'} ) {
+    $cogere->update(
+        'hostname' => $options{'hostname'},
+        'username' => $options{'username'},
+        'ipaddr'   => $options{'ipaddr'},
+        'port'     => $options{'port'},
+    );
+    exit;
+}
+
+if ( defined $options{'fork'} ) {
+    $cogere->fork( $options{'fork'} );
+}
+
+if ( defined $options{'all'} ) {
+    $cogere->all_hosts(1);
+}
+
+$cogere->hosts( @{ $options{'host'} } );
+$cogere->groups( @{ $options{'group'} } );
+
+if ( defined $options{'rekey-hosts'} ) {
+    $cogere->rekey_hosts;
+    exit;
+}
+
+if ( defined $options{'scp-mkdir'} ) {
+    $cogere->scp_mkdir(1);
+}
+
+if ( defined $options{'scp-only'} ) {
+    $cogere->scp_only(1);
+}
+
+if ( defined $options{'scp-source'} and !defined $options{'scp-target'} ) {
+    die "Failed to provide scp-target with scp-source.\n";
+}
+
+if ( !defined $options{'scp-source'} and defined $options{'scp-target'} ) {
+    die "Failed to provide scp-source with scp-target.\n";
+}
+
+if ( defined $options{'scp-source'} and defined $options{'scp-target'} ) { 
+    $cogere->scp_source( $options{'scp-source'} );
+    $cogere->scp_target( $options{'scp-target'} );
+}
+
+$cogere->commands(@ARGV);
+
+if ( defined $options{'commands-file'} ) {
+    $cogere->commands_file( $options{'commands-file'} );
+}
+
+$cogere->reason( $options{'reason'} );
+
+$cogere->connect;
+exit;
 
 sub help {
     print <<EOH;
@@ -232,8 +252,8 @@ Operations:
   -h|--host        Host to connect to, can be provided multiple times. Commands
                      are executed on hosts if no other operations provided.
                      Requires -r|--reason
-  --add-host       Creates new host entry and keys remote host.
-                     Requires --hostname. Optionally --ipaddr, --username
+  --new-host       Creates new host entry and keys remote host.
+                     Requires --hostname. Optionally --ipaddr --username --port
                      Optionally can use --default-key to connect using
                      default SSH key rather than password authentication
   --del-host       Removes host entry and remove key from remote host
@@ -244,7 +264,7 @@ Operations:
   -g|--group       Group to connect to, can be provided multiple times. Commands
                      are executed on groups if no other operations provided.
                      Requires -r|--reason
-  --add-group      Creates new group of hosts.
+  --new-group      Creates new group of hosts.
                      Requires -g|--group, -h|--host
   --del-group      Delete group.
                      Requires -g|--group
@@ -256,28 +276,31 @@ Operations:
                      Requires -t|--scp-target or --scp-mkdir
   -t|--scp-target  Performs an scp to target remote directory
                      Requires -s|--scp-source
-  --scp-mkdir      Creates a new directory on the remote server
-                     Overrides --scp-target
+  --scp-mkdir      Creates target directory on the remote server
   --scp-only       Only copy files to remote hosts
   --new-default    Create a new default SSH key
   --show-default   Prints the default public key
-  --cleanup        Removes all entries for supplied host
-                     Requires --hostname
-  --update-ipaddr  Updates the IP address for a given host
+  --cleanup-host   Removes all entries for supplied host
                      Requires --hostname
   --remove-fingerprint
                    Remove the fingerprint from the known_hosts file for the
-                     supplied IP address
-                     Requires --ipaddr
+                     supplied hostname
+                     Requires --hostname
 
 Options:
   --help              Shows this output
   -f|--config         Alternate configuration file
-  --command-file      Execute commands provided by command-file
+  --commands-file     Execute commands provided by commands-file
   --hostname          Hostname to be provided to --add-host or --del-host
   --ipaddr            IP address to be provided to --add-host
+                        Optional, DNS will be used if not provided
   --username          User name to be provided to --add-host
                         Optional, 'cogere' is used by default
+  --port              SSH port to connect to
+                        Optional, '22' is used by default
+  --update            Updates a field in the hosts configuration
+                        Requires --hostname.
+                        Accepts --ipaddr, --port, --username.
   --default-key       Uses the default SSH key rather than password
                         when adding host
   -r|--reason         Explanation of the commands you are running
@@ -297,1076 +320,9 @@ Notes:
   Mulitple commands:
     Multiple commands can be specified as arguments, they will
     be ran in sequence
-  Hostname resolution
-    Setting a hostname's IP address to 0 will force DNS lookups
 
 John Shields - SmartVault Corporation - 2015
 EOH
-    return;
-}
-
-sub set_globals {
-    my ($config) = @_;
-
-    open my $config_h, '<', $config or die "Failed to open '$config': $!.\n";
-    while (<$config_h>) {
-        chomp;
-        next if /^\s*#|^\s*$/;
-        my ( $var, $val ) = split /=/;
-
-        switch ($var) {
-            case /^base_dir$/    { $base_dir    = $val }
-            case /^hosts_conf$/  { $hosts_conf  = "$base_dir/$val" }
-            case /^keys_dir$/    { $keys_dir    = "$base_dir/$val" }
-            case /^genpass$/     { $genpass     = $val }
-            case /^ssh$/         { $ssh_cmd     = $val }
-            case /^scp$/         { $scp_cmd     = $val }
-            case /^ssh_keygen$/  { $ssh_keygen  = $val }
-            case /^ssh_keyscan$/ { $ssh_keyscan = $val }
-            case /^ssh_copy_id$/ { $ssh_copy_id = $val }
-            case /^username$/    { $username    = $val }
-            case /^log_type$/    { $log_type    = $val }
-            case /^log_host$/    { $log_host    = $val }
-            case /^log_port$/    { $log_port    = $val }
-            case /^log_proto$/   { $log_proto   = $val }
-            case /^log_name$/    { $log_name    = $val }
-            case /^log_file$/    { $log_file    = $val }
-            case /^default_key$/ { $default_key = $val }
-            else                 { warn "'$var' not recognized configuration parameter.\n" }
-        }
-    }
-
-    return;
-}
-
-sub check_globals {
-    $base_dir or die "Base directory not defined.\n";
-    die "Base directory '$base_dir' not found.\n" if !-d $base_dir;
-
-    $hosts_conf or die "Hosts configuration not defined.\n";
-    if ( !-f $hosts_conf ) {
-        open my $handle, '>', $hosts_conf
-          or die "Failed to create empty hosts config '$hosts_conf'.\n";
-        close $handle;
-    }
-    die "Hosts configuration '$hosts_conf' not found.\n" if !-f $hosts_conf;
-
-    $keys_dir or die "Private keys directory not defined.\n";
-    die "Keys directory '$keys_dir' not found.\n" if !-d $keys_dir;
-
-    $genpass or die "genpass is not defined.\n";
-    die "genpass '$genpass' is not executable.\n" if !-x $genpass;
-
-    $ssh_cmd or die "ssh is not defined.\n";
-    die "ssh '$ssh_cmd' is not executable.\n" if !-x $ssh_cmd;
-    $scp_cmd or die "scp is not defined.\n";
-    die "scp '$scp_cmd' is not executable.\n" if !-x $scp_cmd;
-    $ssh_keygen or die "ssh_keygen is not defined.\n";
-    die "ssh-keygen '$ssh_keygen' is not executable.\n" if !-x $ssh_keygen;
-    $ssh_keyscan or die "ssh_keygen is not defined.\n";
-    die "ssh-keyscan '$ssh_keyscan' is not executable.\n" if !-x $ssh_keyscan;
-    $ssh_copy_id or die "ssh_copy_id is not defined.\n";
-    die "ssh-copy-id '$ssh_copy_id' is not executable.\n" if !-x $ssh_copy_id;
-
-    $username or die "Username is not defined.\n";
-
-    $log_type or die "Logging type(s) not defined\n";
-    my @log_types = split /,/, $log_type;
-    for my $log (@log_types) {
-        switch ($log) {
-            case /^logstash$/ {
-                $log_host  or die "Logging host is not defined.\n";
-                $log_port  or die "Logging port is not defined.\n";
-                $log_proto or die "Logging protocol is not defined.\n";
-                $log_name  or die "Logging application name is not defined.\n";
-                $logstash = 1;
-            }
-            case /^file$/ {
-                $log_file or die "Log file is not defined.\n";
-                die "Log file '$log_file' not found.\n" if !-f $log_file;
-            }
-            else {
-                die "Invalied log type '$log'.\n";
-            }
-        }
-    }
-
-    return;
-}
-
-sub write_log {
-    my %log = @_;
-
-    if ($log_file) {
-        my $timestamp = strftime "%Y-%m-%d %H:%M:%S", localtime;
-
-        open my $handle, '>>', $log_file
-          or die "Failed to open '$log_file': $!.\n";
-        printf $handle "%s\nTime:     %s\nUser:     %s\nHosts:    %s\nReason:   %s\nCommands:\n%s;\n",
-          '#' x 80, $timestamp, $log{'user'}, join( ', ', @{ $log{'hosts'} } ), $log{'message'},
-          join( ";\n", @{ $log{'commands'} } );
-        close $handle;
-
-    }
-
-    if ($logstash) {
-        my $logger = SV::Logger->new(
-            'host'     => $log_host,
-            'port'     => $log_port,
-            'protocol' => $log_proto,
-            'app'      => $log_name,
-        );
-        $logger->write( $json_o->encode( \%log ) );
-    }
-
-    return;
-}
-
-sub get_yaml {
-    my $yaml = YAML::Tiny->read($hosts_conf) or die "Failed to parse '$hosts_conf': $!.\n";
-
-    return $yaml;
-}
-
-sub get_config {
-    my $yaml = get_yaml();
-
-    return $yaml->[0];
-}
-
-sub validate_hosts {
-    my @hosts = @_;
-
-    for my $host (@hosts) {
-        get_host($host) or die "Invalid host '$host'.\n";
-    }
-
-    return;
-}
-
-sub validate_groups {
-    my @groups = @_;
-
-    for my $group (@groups) {
-        get_members($group) or die "Invalid group '$group'.\n";
-    }
-
-    return;
-}
-
-sub get_host {
-    my ($hostname) = @_;
-
-    my $host;
-    my $config = get_config();
-    $host = $config->{'hosts'}{$hostname};
-
-    return $host;
-}
-
-sub get_members {
-    my ($group) = @_;
-
-    my $config  = get_config();
-    my $mem_ref = $config->{'groups'}{$group};
-    $mem_ref or die "Group '$group' not found.\n";
-
-    my @members = @{$mem_ref};
-
-    return @members;
-}
-
-sub get_params {
-    my ($host) = @_;
-
-    my $host_o = get_host($host);
-
-    my %params = (
-        'hostname' => $host,
-        'username' => $host_o->{'username'},
-        'ipaddr'   => $host_o->{'ipaddr'},
-        'password' => $host_o->{'password'},
-        'remoteid' => $host_o->{'remoteid'},
-        'private'  => "$keys_dir/$host",
-        'public'   => "$keys_dir/$host.pub",
-    );
-
-    if ( !$params{'ipaddr'} ) {
-        $params{'ipaddr'} = resolve_hostname($host);
-        if ( !$params{'ipaddr'} ) {
-            warn "Could not resolve hostname '$host'.\n";
-        }
-    }
-
-    return %params;
-}
-
-sub gen_key {
-    my ($hostname) = @_;
-
-    if ( -e "$keys_dir/$hostname" or -e "$keys_dir/$hostname.pub" ) {
-        die "Keys already exist.\n";
-    }
-
-    open my $handle, "$genpass -c2 -S0 -l32|" or die "Failed to generate password: $!.\n";
-    chomp( my @lines = <$handle> );
-    close $handle;
-
-    my ( $password, $remoteid ) = @lines;
-
-    my $out = `$ssh_keygen -q -b 4096 -t rsa -P "$password" -C "$remoteid" -f "$keys_dir/$hostname"`;
-    die "Failed to generate SSH keys for '$hostname': $out.\n" if ( $? > 0 );
-
-    chmod 0600, "$keys_dir/$hostname", "$keys_dir/$hostname.pub"
-      or die "Failed to correct permissions on '$keys_dir/$hostname', '$keys_dir/$hostname.pub': $!.\n";
-
-    return ( $password, $remoteid );
-}
-
-sub copy_key {
-    my ( $hostname, $user, $ipaddr ) = @_;
-
-    $log{'message'}  = "Adding host '$hostname'";
-    $log{'hosts'}    = [$hostname];
-    $log{'commands'} = ["[local] $ssh_copy_id -i \"$keys_dir/$hostname\" $user\@$ipaddr"];
-    write_log(%log);
-
-    my $out = `$ssh_copy_id -i "$keys_dir/$hostname" $user\@$ipaddr`;
-
-    if ( $? > 0 ) {
-        warn "Failed to copy SSH key to remote host '$user\@$ipaddr': $out.\n";
-        return 1;
-    }
-
-    return;
-}
-
-sub add_hosts_conf {
-    my ( $hostname, $user, $ipaddr, $password, $remoteid ) = @_;
-
-    my $yaml = get_yaml();
-    my $host = {
-        'username' => $user,
-        'ipaddr'   => $ipaddr,
-        'password' => $password,
-        'remoteid' => $remoteid,
-    };
-    $yaml->[0]{'hosts'}{$hostname} = $host;
-    $yaml->write($hosts_conf);
-
-    return;
-}
-
-sub del_hosts_conf {
-    my ( $hostname, $timestamp ) = @_;
-
-    my $yaml = get_yaml();
-    delete $yaml->[0]{'hosts'}{$hostname};
-    $yaml->write($hosts_conf);
-
-    $hostname = "$hostname.$timestamp" if $timestamp;
-
-    if ( -f "$keys_dir/$hostname" ) {
-        unlink "$keys_dir/$hostname"
-          or die "Failed to unlink '$keys_dir/$hostname': $!.\n";
-        print "Removed private key for '$hostname'.\n";
-    }
-
-    if ( -f "$keys_dir/$hostname.pub" ) {
-        unlink "$keys_dir/$hostname.pub"
-          or die "Failed to unlink '$keys_dir/$hostname.pub': $!.\n";
-        print "Removed public key for '$hostname'.\n";
-    }
-
-    return;
-}
-
-sub add_remote_key {
-    my ($hostname) = @_;
-
-    my ( $key, $handle );
-    open $handle, '<', "$keys_dir/$hostname.pub" or die "Failed to open '$keys_dir/$hostname.pub': $!.\n";
-    chomp( $key = <$handle> );
-    close $handle;
-
-    my %params = get_params($hostname);
-    @commands = ("echo '$key' >> /home/$params{'username'}/.ssh/authorized_keys");
-    $args{'reason'} = "Adding SSH key to $hostname";
-
-    return;
-}
-
-sub del_remote_key {
-    my ( $hostname, $remoteid ) = @_;
-
-    my %params = get_params($hostname);
-    $params{'remoteid'} = $remoteid if $remoteid;
-    @commands = ("sed -i '/$params{'remoteid'}\$/d' /home/$params{'username'}/.ssh/authorized_keys");
-    $args{'reason'} = "Removing SSH key from $hostname";
-
-    return;
-}
-
-sub backup_key {
-    my ($hostname) = @_;
-
-    my $timestamp = time;
-
-    rename "$keys_dir/$hostname", "$keys_dir/$hostname.$timestamp"
-      or die "Failed to backup '$keys_dir/$hostname': $!.\n";
-    rename "$keys_dir/$hostname.pub", "$keys_dir/$hostname.$timestamp.pub"
-      or die "Failed to backup '$keys_dir/$hostname.pub': $!.\n";
-
-    return $timestamp;
-}
-
-sub leave_all_groups {
-    my ($host) = @_;
-
-    my $config = get_config();
-    for my $group ( keys %{ $config->{'groups'} } ) {
-        my @members = get_members($group);
-        if ( grep { $_ eq $host } @members ) {
-            process_leave_group( [$group], [$host] );
-        }
-    }
-
-    return;
-}
-
-sub open_ssh {
-    my ( $hostname, %params ) = @_;
-
-    open my $in_garb,  '<', '/dev/null';
-    open my $out_garb, '>', '/dev/null';
-    open my $err_garb, '>', '/dev/null';
-
-    my $ssh = Net::OpenSSH->new(
-        $params{'ipaddr'},
-        'user'              => $params{'username'},
-        'passphrase'        => $params{'password'},
-        'key_path'          => $params{'private'},
-        'default_stdout_fh' => $out_garb,
-        'default_stderr_fh' => $err_garb,
-        'default_stdin_fh'  => $in_garb,
-        'ssh_cmd'           => $ssh_cmd,
-        'scp_cmd'           => $scp_cmd,
-        'master_opts'       => [
-            -o => 'StrictHostKeyChecking=no',
-            -o => 'CheckHostIP=no',
-            -o => 'GSSAPIAuthentication=no',
-            -o => 'IdentitiesOnly=yes',
-            -o => 'PasswordAuthentication=no',
-            -o => 'PubkeyAuthentication=yes',
-        ],
-    );
-
-    if ( $ssh->error ) {
-        warn "Failed to SSH to '$hostname': ${\$ssh->error}.\n";
-        return 1;
-    }
-
-    return $ssh;
-}
-
-sub run_commands {
-    my ( $hostname, $timestamp, $scp_source, $scp_target, $scp_only, $default, $scp_mkdir ) = @_;
-
-    my %params = get_params($hostname);
-    if ($timestamp) {
-        $params{'private'} = "$keys_dir/$hostname.$timestamp";
-        $params{'public'}  = "$keys_dir/$hostname.$timestamp.pub";
-    }
-
-    if ( !$default ) {
-        verify_host_key($hostname) and return 1;
-    }
-
-    my $ssh = open_ssh( $hostname, %params );
-    return 1 if $ssh == 1;
-
-    if ( $scp_source and $scp_target ) {
-        my $copy_failed = perform_scp( $scp_source, $scp_target, $ssh, $hostname, $scp_mkdir );
-        if ($copy_failed) {
-            warn "Failed to copy source to '$hostname'.\n";
-            return 1;
-        }
-
-        if ($scp_only) {
-            print "Successfully copied '$scp_source' to '$scp_target' to '$hostname'\n";
-            return;
-        }
-    }
-
-    for my $command (@commands) {
-        my ( $out, $pid ) = $ssh->pipe_out($command);
-
-        if ( $ssh->error ) {
-            warn "Failed to open command pipe on '$hostname': ${\$ssh->error}.\n";
-            return 1;
-        }
-
-        my $line;
-        while ( $line = <$out> ) {
-            if ($fork_num) {
-                $line = "[$hostname] $line";
-            }
-            print $line;
-        }
-        close $out;
-    }
-
-    return;
-}
-
-sub fork_hosts {
-    my ( $hosts, $timestamp, $scp_source, $scp_target, $scp_only, $scp_mkdir ) = @_;
-
-    my $pm = Parallel::ForkManager->new($fork_num);
-  HOSTS:
-    for my $hostname ( @{$hosts} ) {
-        $pm->start and next HOSTS;
-
-        run_commands( $hostname, $timestamp, $scp_source, $scp_target, $scp_only, undef, $scp_mkdir );
-
-        $pm->finish;
-    }
-    $pm->wait_all_children;
-
-    return;
-}
-
-sub perform_scp {
-    my ( $source, $target, $ssh, $hostname, $mkdir ) = @_;
-
-    if ( !-d $source and !-f $source ) {                                                                                
-        warn "Cannot copy '$source', source is neither a file nor a directory.\n";                                      
-        return 1;                                                                                                       
-    }
-
-    if ( $mkdir ) {
-        my ( $out, $pid ) = $ssh->pipe_out("mkdir -pv '$target'");
-
-        if ( $ssh->error ) {
-            warn "Failed to open command pipe on '$hostname': ${\$ssh->error}.\n";
-            return 1;
-        }
-
-        my $line;
-        while ( $line = <$out> ) {
-            if ($fork_num) {
-                $line = "[$hostname] $line";
-            }
-            print $line;
-        }
-        close $out;
-    }
-
-    $ssh->scp_put( { 'recursive' => 1 }, $source, $target );
-
-    if ( $ssh->error ) {
-        warn "Failed to copy source '$source': ${\$ssh->error}.\n";
-        return 1;
-    }
-
-    return;
-}
-
-sub process_host_list {
-    my ( $host_list, $timestamp, $scp_file, $scp_target, $scp_only, $stop, $default, $scp_mkdir ) = @_;
-
-    $timestamp = 0 if !$timestamp;
-
-    $host_list      or die "Host list was not provided.\n";
-    @commands       or die "Commands were not provided.\n";
-    $args{'reason'} or die "Reason was not provided.\n";
-
-    my @dirty_hosts = @{$host_list};
-    my @hosts       = uniq @dirty_hosts;
-    validate_hosts(@hosts);
-
-    $log{'hosts'}    = [@hosts];
-    $log{'commands'} = [@commands];
-    $log{'message'}  = $args{'reason'} unless defined $log{'message'};
-
-    write_log(%log);
-
-    if ($fork_num) {
-        if ( $fork_num =~ /^(a|all)$/ ) {
-            $fork_num = $#hosts + 1;
-        }
-        elsif ( $fork_num !~ /\d+/ ) {
-            die "Fork argument '$fork_num' is invalid\n";
-        }
-        fork_hosts( [@hosts], $timestamp, $scp_file, $scp_target, $scp_only, $scp_mkdir );
-    }
-    else {
-        for my $hostname (@hosts) {
-            my $failure = run_commands( $hostname, $timestamp, $scp_file, $scp_target,
-              $scp_only, $default, $scp_mkdir );
-            if ( $failure and $stop ) {
-                return 1;
-            }
-        }
-    }
-
-    return;
-}
-
-sub process_add_host {
-    my ( $hostname, $ipaddr, $user, $default, $group ) = @_;
-
-    $hostname or die "Failed to provide hostname.\n";
-
-    my $resolved;
-    if ( !$ipaddr ) {
-        $ipaddr = resolve_hostname($hostname);
-        if ($ipaddr) {
-            $resolved = 1;
-        }
-        else {
-            die "No IP address found for '$hostname'.\n";
-        }
-    }
-
-    $user = defined $user ? $user : $username;
-
-    my @groups;
-    if ($group) {
-        my @dirty_groups = @{$group};
-        @groups = uniq @dirty_groups;
-        validate_groups(@groups);
-    }
-
-    get_host($hostname) and die "Hostname '$hostname' already defined.\n";
-
-    $log{'message'} = "Adding host '$hostname'";
-
-    if ( !$default ) {
-        my ( $password, $remoteid ) = gen_key($hostname);
-        my $failure = copy_key( $hostname, $user, $ipaddr );
-
-        if ($failure) {
-            print "Failed to copy key to '$hostname'\n";
-            process_cleanup($hostname);
-            return 1;
-        }
-
-        $ipaddr = 0 if $resolved;
-        add_hosts_conf( $hostname, $user, $ipaddr, $password, $remoteid );
-    }
-    else {
-        my %def = get_params($default_key);
-        $ipaddr = 0 if $resolved;
-        add_hosts_conf( $hostname, $user, $ipaddr, $def{'password'}, $def{'remoteid'} );
-        my $failure = key_from_default($hostname);
-
-        if ($failure) {
-            print "Failed to key '$hostname' using default key.\n";
-            process_cleanup($hostname);
-            return 1;
-        }
-    }
-
-    print "Successfully added '$hostname'\n";
-
-    if (@groups) {
-        process_join_group( [@groups], [$hostname] );
-    }
-
-    return;
-}
-
-sub process_del_host {
-    my ($hostname) = @_;
-
-    get_host($hostname) or die "Hostname '$hostname' not defined.\n";
-
-    $log{'message'} = "Deleting host '$hostname'";
-
-    my %params = get_params($hostname);
-
-    leave_all_groups($hostname);
-    del_remote_key( $hostname, undef );
-
-    my $failure = process_host_list( [$hostname], undef, undef, undef, undef, 1, undef, undef );
-    if ($failure) {
-        print "Failed to delete remote key from '$hostname'\n";
-        process_cleanup($hostname);
-        return 1;
-    }
-
-    del_hosts_conf( $hostname, undef );
-
-    print "Successfully deleted '$hostname'\n";
-
-    return;
-}
-
-sub process_rekey_host {
-    my ($host_list) = @_;
-
-    my @dirty_hosts = @{$host_list};
-    my @hosts       = uniq @dirty_hosts;
-    validate_hosts(@hosts);
-
-    for my $hostname (@hosts) {
-        get_host($hostname) or die "Hostname '$hostname' not defined,\n";
-
-        $log{'message'} = "Rekeying host '$hostname'";
-
-        my %params = get_params($hostname);
-
-        my $timestamp = backup_key($hostname);
-        my ( $password, $remoteid ) = gen_key($hostname);
-        add_remote_key($hostname);
-        process_host_list( [$hostname], $timestamp, undef, undef, undef, undef, undef, undef );
-        del_hosts_conf( $hostname, $timestamp );
-        add_hosts_conf( $hostname, $params{'username'}, $params{'ipaddr'}, $password, $remoteid );
-        del_remote_key( $hostname, $params{'remoteid'} );
-        process_host_list( [$hostname], undef, undef, undef, undef, undef, undef, undef );
-
-        print "Successfully rekeyed '$hostname'\n";
-    }
-
-    return;
-}
-
-sub process_list_hosts {
-    my $config = get_config();
-
-    my $hosts = $config->{'hosts'};
-    for my $host ( sort keys %{$hosts} ) {
-        next if $host eq $default_key;
-        print "$host\n";
-    }
-
-    return;
-}
-
-sub process_list_groups {
-    my $config = get_config();
-
-    my $groups = $config->{'groups'};
-    for my $group ( sort keys %{$groups} ) {
-        process_list_members($group);
-    }
-
-    return;
-}
-
-sub process_list_members {
-    my ($group) = @_;
-
-    $group or die "Group was not provided.\n";
-
-    my $config = get_config();
-    my $hosts  = $config->{'groups'}{$group};
-
-    $hosts or die "Group was not found\n";
-
-    printf "%s - %s\n", $group, join ',', @{$hosts};
-
-    return;
-}
-
-sub process_add_group {
-    my ( $group, $host_list ) = @_;
-
-    $group     or die "Group was not provided.\n";
-    $host_list or die "Failed to provided host list.\n";
-
-    my @dirty_groups = @{$group};
-    my @groups       = uniq @dirty_groups;
-    my @dirty_hosts  = @{$host_list};
-    my @hosts        = uniq @dirty_hosts;
-    validate_hosts(@hosts);
-
-    my $yaml = get_yaml();
-
-    for my $group (@groups) {
-        if ( exists $yaml->[0]{'groups'}{$group} ) {
-            warn "Group '$group' exists, cannot recreate. Join or delete '$group'.\n";
-            next;
-        }
-
-        $yaml->[0]{'groups'}{$group} = [@hosts];
-    }
-
-    $yaml->write($hosts_conf);
-    printf "Successfully created groups: '%s' with hosts: '%s'\n", join( ',', @groups ), join( ',', @hosts );
-
-    return;
-}
-
-sub process_del_group {
-    my ($group) = @_;
-
-    $group or die "Group was not provided.\n";
-    my @dirty_groups = @{$group};
-    my @groups       = uniq @dirty_groups;
-    validate_groups(@groups);
-
-    my $yaml = get_yaml();
-
-    for my $group (@groups) {
-        if ( !exists $yaml->[0]{'groups'}{$group} ) {
-            warn "Group '$group' does not exist, cannot delete.\n";
-        }
-
-        delete $yaml->[0]{'groups'}{$group};
-    }
-
-    $yaml->write($hosts_conf);
-    printf "Successfully removed groups: '%s'\n", join( ',', @groups );
-
-    return;
-}
-
-sub process_join_group {
-    my ( $group, $host_list ) = @_;
-
-    $group     or die "Group was not provided.\n";
-    $host_list or die "Host list was not provided.\n";
-
-    my @dirty_groups = @{$group};
-    my @groups       = uniq @dirty_groups;
-    my @dirty_hosts  = @{$host_list};
-    my @hosts        = uniq @dirty_hosts;
-
-    validate_groups(@groups);
-    validate_hosts(@hosts);
-
-    my $yaml = get_yaml();
-
-    for my $group (@groups) {
-        my @members = get_members($group);
-
-        for my $host (@hosts) {
-            next if grep { $_ eq $host } @members;
-            push @members, $host;
-        }
-
-        $yaml->[0]{'groups'}{$group} = [@members];
-
-    }
-
-    $yaml->write($hosts_conf);
-    printf "Successfully added hosts: '%s' to groups: '%s'\n", join( ',', @hosts ), join( ',', @groups );
-
-    return;
-}
-
-sub process_leave_group {
-    my ( $group, $host_list ) = @_;
-
-    $group     or die "Group was not provided.\n";
-    $host_list or die "Host list was not provided.\n";
-
-    my @dirty_groups = @{$group};
-    my @groups       = uniq @dirty_groups;
-    my @dirty_hosts  = @{$host_list};
-    my @hosts        = uniq @dirty_hosts;
-
-    validate_groups(@groups);
-    validate_hosts(@hosts);
-
-    my $yaml = get_yaml();
-
-    for my $group (@groups) {
-        my @members = get_members($group);
-
-        for my $host (@hosts) {
-            @members = grep { $_ ne $host } @members;
-        }
-
-        $yaml->[0]{'groups'}{$group} = [@members];
-
-        delete $yaml->[0]{'groups'}{$group}
-          if !scalar @{ $yaml->[0]{'groups'}{$group} };
-    }
-
-    $yaml->write($hosts_conf);
-    printf "Successfully removed hosts: '%s' from groups: '%s'\n", join( ',', @hosts ), join( ',', @groups );
-
-    return;
-}
-
-sub process_host {
-    my ($host_list) = @_;
-
-    $host_list or return;
-
-    my @dirty_hosts = @{$host_list};
-    my @hosts       = uniq @dirty_hosts;
-
-    for my $host (@hosts) {
-        if ( $host =~ /^:/ ) {
-            $host =~ s/^://;
-            push @negate_hosts, $host;
-        }
-        else {
-            push @target_hosts, $host;
-        }
-    }
-
-    return;
-}
-
-sub process_group {
-    my ($group_list) = @_;
-
-    $group_list or die "Groups were not provided.\n";
-    my @dirty_groups = @{$group_list};
-    my @groups       = uniq @dirty_groups;
-
-    for my $group (@groups) {
-        if ( $group =~ /^:/ ) {
-            $group =~ s/^://;
-            my @members = get_members($group);
-            @negate_hosts = ( @negate_hosts, @members );
-        }
-        else {
-            my @members = get_members($group);
-            @target_hosts = ( @target_hosts, @members );
-        }
-    }
-
-    return;
-}
-
-sub process_all {
-    my $config = get_config();
-
-    my $hosts_ref = $config->{'hosts'};
-    my @hosts;
-    for my $host ( sort keys %{$hosts_ref} ) {
-        push @hosts, $host;
-    }
-
-    @target_hosts = ( @target_hosts, @hosts );
-
-    return;
-}
-
-sub process_negate {
-    for my $host (@negate_hosts) {
-        @target_hosts = grep { $_ ne $host } @target_hosts;
-    }
-
-    return;
-}
-
-sub process_show_default {
-    if ( !-f "$keys_dir/$default_key" or !-f "$keys_dir/$default_key.pub" ) {
-        die "No default key found\n";
-    }
-
-    open my $key_h, '<', "$keys_dir/$default_key.pub"
-      or die "Failed to open '$keys_dir/$default_key.pub': $!\n";
-    print while <$key_h>;
-    close $key_h;
-
-    return;
-}
-
-sub process_new_default {
-    if ( -f "$keys_dir/$default_key" ) {
-        unlink "$keys_dir/$default_key"
-          or die "Failed to remote default private key: $!\n";
-    }
-
-    if ( -f "$keys_dir/$default_key.pub" ) {
-        unlink "$keys_dir/$default_key.pub"
-          or die "Failed to remove default public key: $!\n";
-    }
-
-    my ( $password, $remoteid ) = gen_key($default_key);
-    add_hosts_conf( $default_key, 'default', '0.0.0.0', $password, $remoteid );
-
-    process_show_default();
-
-    return;
-}
-
-sub copy_default_key {
-    my ($hostname) = @_;
-
-    copy "$keys_dir/$default_key", "$keys_dir/$hostname"
-      or die "Failed to copy default private key: $!\n";
-
-    copy "$keys_dir/$default_key.pub", "$keys_dir/$hostname.pub"
-      or die "Failed to copy default public key: $!\n";
-
-    chmod 0600, "$keys_dir/$hostname", "$keys_dir/$hostname.pub"
-      or die "Failed to correct permissions on '$keys_dir/$hostname', '$keys_dir/$hostname.pub': $!.\n";
-
-    return;
-}
-
-sub key_from_default {
-    my ($hostname) = @_;
-
-    my %params = get_params($hostname);
-    my %def    = get_params($default_key);
-
-    $log{'message'} = "Adding host '$hostname' using default key";
-
-    copy_default_key($hostname);
-    my $timestamp = backup_key($hostname);
-    my ( $password, $remoteid ) = gen_key($hostname);
-
-    add_remote_key($hostname);
-
-    my $failed_add = process_host_list( [$hostname], $timestamp, undef, undef, undef, 1, 1, undef );
-    if ($failed_add) {
-        print "Failed to add new key to '$hostname'.\n";
-        process_cleanup($hostname);
-        return 1;
-    }
-
-    del_hosts_conf( $hostname, $timestamp );
-    add_hosts_conf( $hostname, $params{'username'}, $params{'ipaddr'}, $password, $remoteid );
-    del_remote_key( $hostname, $def{'remoteid'} );
-
-    my $failed_del = process_host_list( [$hostname], undef, undef, undef, undef, 1, undef, undef );
-    if ($failed_del) {
-        print "Failed to remove default key from '$hostname'.\n";
-        return 1;
-    }
-
-    return;
-}
-
-sub remove_default {
-    @target_hosts = grep { $_ ne $default_key } @target_hosts;
-
-    return;
-}
-
-sub process_cleanup {
-    my ($hostname) = @_;
-
-    $hostname or die "Failed to provide hostname.\n";
-    my %params = get_params($hostname);
-
-    leave_all_groups($hostname);
-    del_hosts_conf( $hostname, undef );
-
-    return;
-}
-
-sub process_command_file {
-    my ($command_file) = @_;
-
-    open my $command_h, '<', $command_file
-      or die "Failed to open '$command_file': $!\n";
-    @commands = <$command_h>;
-    close $command_h;
-
-    chomp @commands;
-
-    return;
-}
-
-sub resolve_hostname {
-    my ($hostname) = @_;
-
-    my @packed = gethostbyname($hostname)
-      or warn "Failed to resolve '$hostname'\n" and return 0;
-
-    my @addresses = map { inet_ntoa($_) } @packed[ 4 .. $#packed ];
-
-    my $address = $addresses[0];
-    if ( scalar @addresses > 1 ) {
-        warn "Multiple IP addresses returned for '$hostname', using '$address'\n";
-    }
-
-    return $address;
-}
-
-sub process_update_ipaddr {
-    my ( $hostname, $ipaddr ) = @_;
-
-    $hostname or die "Failed to provide hostname.\n";
-    defined $ipaddr or die "Failed to provide IP address.\n";
-
-    validate_hosts($hostname);
-
-    my $yaml = get_yaml();
-
-    $yaml->[0]{'hosts'}{$hostname}{'ipaddr'} = $ipaddr;
-    $yaml->write($hosts_conf);
-
-    return;
-}
-
-sub process_remove_fingerprint {
-    my ($ipaddr) = @_;
-
-    $ipaddr or die "Failed to provide IP address.\n";
-
-    my $check = `$ssh_keygen -F $ipaddr`;
-    die "Failed to loopkup '$ipaddr' from known_hosts: $check\n" if ( $? > 0 );
-
-    if ($check) {
-        my $out = `$ssh_keygen -R $ipaddr 2>/dev/null`;
-        die "Failed to remove fingerprint for '$ipaddr': $out\n" if ( $? > 0 );
-
-        print "Removed fingerprint for '$ipaddr'.\n";
-    }
-
-    return;
-}
-
-sub verify_host_key {
-    my ($hostname) = @_;
-
-    my %params = get_params($hostname);
-    my $ipaddr = $params{'ipaddr'};
-
-    my @local_fingerprint = `$ssh_keygen -H -F $ipaddr`;
-    if ( $? > 0 ) {
-        warn "Failed to lookup local fingerprint for '$hostname ($ipaddr)'.\n";
-        return 1;
-    }
-
-    if ( scalar @local_fingerprint > 2 ) {
-        warn "Duplicate fingerprints found for '$hostname ($ipaddr)'.\n";
-        return 1;
-    }
-    elsif ( !@local_fingerprint ) {
-        warn "No fingerprint found for '$hostname ($ipaddr)'.\n";
-        return 1;
-    }
-
-    my ( $local_type, $local_hash, $remote_type );
-
-    my @_local_type = split /\s+/, $local_fingerprint[0];
-    $local_type = lc $_local_type[$#_local_type];
-
-    my @_local_hash = split /\s+/, $local_fingerprint[1];
-    $local_hash = $_local_hash[$#_local_hash];
-
-    my @remote_fingerprint = `$ssh_keyscan -t $local_type -H $ipaddr 2>/dev/null`;
-    if ( $? > 0 ) {
-        warn "Failed to lookup remote fingerprint for '$hostname ($ipaddr)'.\n";
-        return 1;
-    }
-
-    if ( !@remote_fingerprint ) {
-        warn "Failed to retireve remote fingerprint for '$hostname ($ipaddr)'.\n";
-        return 1;
-    }
-
-    my @_remote_hash = split /\s+/, $remote_fingerprint[0];
-    my $remote_hash = $_remote_hash[$#_remote_hash];
-
-    if ( $local_hash ne $remote_hash ) {
-        warn "Remote fingerprint changed on '$hostname ($ipaddr)'.\n";
-        return 1;
-    }
-
     return;
 }
 
