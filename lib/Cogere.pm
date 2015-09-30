@@ -501,7 +501,7 @@ sub connect {
 
     my %log = (
         'user'     => $self->user,
-        'hosts'    => [ $self->targets ],
+        'hosts'    => $self->targets,
         'commands' => $self->commands,
         'reason'   => $self->reason,
     );
