@@ -260,7 +260,7 @@ sub del_host {
 
     my %command_set = Cogere::Commands::del_remote_key(
         'hostname' => $hostname,
-        'host'     => $host,
+        'remoteid' => $host->{'remoteid'},
     );
     $self->_parse_command_set(%command_set);
 
@@ -576,7 +576,6 @@ sub rekey_hosts {
 
         my %command_del = Cogere::Commands::del_remote_key(
             'hostname' => $hostname,
-            'host'     => $host,
             'remoteid' => $host->{'remoteid'},
         );
         $self->_parse_command_set(%command_del);

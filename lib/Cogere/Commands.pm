@@ -1,5 +1,8 @@
 package Cogere::Commands;
 
+use strict;
+use warnings;
+
 use Carp;
 
 sub add_remote_key {
@@ -11,7 +14,7 @@ sub add_remote_key {
     my $hostname = $args{'hostname'};
 
     my ( $key, $key_h );
-    open my $key_h, '<', $args{'public-key'}
+    open $key_h, '<', $args{'public-key'}
       or croak "Failed to open '$args{'public-key'}': $!";
     chomp ( $key = <$key_h> );
     close $key_h;
@@ -29,10 +32,10 @@ sub del_remote_key {
     my (%args) = @_;
 
     defined $args{'hostname'} or croak "Failed to provide hostname.";
+    defined $args{'remoteid'} or croak "Failed to provide remoteid.";
 
     my $hostname = $args{'hostname'};
-
-    my $remoteid = defined $args{'remoteid'} ? $args{'remoteid'} : $host->{'remoteid'};
+    my $remoteid = $args{'remoteid'};
 
     my %command_set = (
         'commands' => [ "sed -i '/$remoteid\$/d' ~/.ssh/authorized_keys" ],
@@ -52,7 +55,7 @@ sub copy_key {
     my $hostname = $args{'hostname'};
 
     my ( $key, $key_h );
-    open my $key_h, '<', $args{'public-key'}
+    open $key_h, '<', $args{'public-key'}
       or croak "Failed to open '$args{'public-key'}': $!";
     chomp ( $key = <$key_h> );
     close $key_h;
