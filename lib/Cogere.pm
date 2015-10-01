@@ -10,6 +10,7 @@ use Cogere::Config;
 use Cogere::Commands;
 
 use Net::OpenSSH;
+use Term::ReadKey;
 use Parallel::ForkManager;
 
 use Hash::Util::FieldHash qw/fieldhash/;
@@ -35,6 +36,7 @@ fieldhash my %_scp_only;
 fieldhash my %_stop_on_fail;
 fieldhash my %_use_default_key;
 fieldhash my %_backup;
+fieldhash my %_no_key;
 fieldhash my %_all_hosts;
 
 sub new {
@@ -167,7 +169,6 @@ sub key_from_default {
 
     my %command_del = Cogere::Commands::del_remote_key(
         'hostname' => $hostname,
-        'host'     => $host,
         'remoteid' => $host->{'remoteid'},
     );
     $self->_parse_command_set(%command_del);
@@ -195,16 +196,27 @@ sub new_host {
     }
 
     if ( !$self->use_default_key ) {
+        $self->_no_key(1);
+        $self->stop_on_fail(1);
         ( $args{'password'}, $args{'remoteid'} ) = $self->util->gen_key( $args{'hostname'} );
-        my $failure = $self->_copy_key(%args);
+        $self->hosts_config->new_host(%args);
+
+        my $host = $self->hosts_config->get_host( $args{'hostname'} );
+
+        my %command_set = Cogere::Commands::copy_key(
+            'hostname'   => $args{'hostname'},
+            'public-key' => $host->{'public-key'},
+        );
+        $self->_parse_command_set(%command_set);
+
+        my $failure = $self->connect;
 
         if ( $failure ) {
             carp "Failed to copy key to '$args{'hostname'}'.";
             $self->cleanup_host($args{'hostname'});
             return 1;
         }
-
-        $self->hosts_config->new_host(%args);
+        $self->_no_key(0);
     }
     else {
         my $def = $self->hosts_config->get_host( $self->config->default_key );
@@ -245,9 +257,7 @@ sub del_host {
         'hostname' => $hostname,
         'host'     => $host,
     );
-    $self->commands( @{ $command_set{'commands'} } );
-    $self->hosts( 'hosts' => $command_set{'hosts'} );
-    $self->reason( $command_set{'reason'} );
+    $self->_parse_command_set(%command_set);
 
     my $failure = $self->connect;
     
@@ -531,7 +541,6 @@ sub rekey_hosts {
 
         my %command_add = Cogere::Commands::add_remote_key(
             'hostname'   => $hostname,
-            'host'       => $host,
             'public-key' => $host->{'public-key'},
         );
         $self->_parse_command_set(%command_add);
@@ -669,48 +678,44 @@ sub util {
     return $_util{$self};
 }
 
-sub _copy_key {
-    my ( $self, %args ) = @_;
-
-    defined $args{'hostname'} or croak "Failed to provide hostname.";
-
-    my $cmd = $self->config->ssh_copy_id;
-
-    my $hostname = $args{'hostname'};
-    my $port     = $args{'port'}     || $self->config->default_port;
-    my $username = $args{'username'} || $self->config->default_user;
-    my $ipaddr   = $args{'ipaddr'}   || $self->util->resolve_hostname($hostname);
-
-    my $keys_path = $self->config->keys_path;
-    my $key = "$keys_path/$hostname";
-
-    my %log = (
-        'user'     => $self->user,
-        'reason'   => "Adding host '$hostname'",
-        'hosts'    => [ $args{'hostname'} ],
-        'commands' => [ "[local] $cmd -i \"$key\" -p $port $username\@$ipaddr" ],
-    );
-    $self->util->write_log(%log);
-
-    my $out = `$cmd -i "$key" -p "$port" "$username\@$ipaddr"`;
-    if ( $? != 0 ) {
-        carp "Failed to copy SSH key to remote host '$username\@$ipaddr': $out.";
-        return 1;
-    }
-
-    return;
-}
-
 sub _open_ssh {
     my ( $self, $hostname, $host ) = @_;
 
-    defined $host or croak "Failed to provide host.";
+    defined $hostname or croak "Failed to provide hostname.";
+    defined $host     or croak "Failed to provide host.";
+
+    my $ssh;
+
+    if ( $self->_no_key ) {
+        ReadMode('noecho');
+        printf "Enter password for %s\@%s: ", $host->{'username'}, $hostname;
+        chomp( $host->{'password'} = <STDIN> );
+        ReadMode(0);
+        print "\n";
+
+        $ssh = $self->_open_ssh_pass( $hostname, $host );
+    }
+    else {
+        $ssh = $self->_open_ssh_key( $hostname, $host );
+    }
+
+    if ( $ssh == 1 ) {
+        carp "Failed to create ssh object.";
+        return 1;
+    }
+
+    return $ssh;
+}
+
+sub _open_ssh_key {
+    my ( $self, $hostname, $host ) = @_;
+
+    defined $hostname or croak "Failed to provide hostname.";
+    defined $host     or croak "Failed to provide host.";
 
     open my $in_garb,  '<', '/dev/null';
     open my $out_garb, '>', '/dev/null';
     open my $err_garb, '>', '/dev/null';
-
-    my $ipaddr = $host->{'ipaddr'};
 
     my $ssh = Net::OpenSSH->new(
         $host->{'ipaddr'},
@@ -727,16 +732,50 @@ sub _open_ssh {
             -o => 'StrictHostKeyChecking=no',
             -o => 'CheckHostIP=no',
             -o => 'GSSAPIAuthentication=no',
-            -o => 'IdentitiesOnly=yes',
-            -o => 'PasswordAuthentication=no',
             -o => 'PubkeyAuthentication=yes',
         ],
-    );
+    );  
 
-    if ( $ssh->error ) {
+    if ( $ssh->error ) { 
         carp "Failed to SSH to '$hostname': ${\$ssh->error}.";
         return 1;
-    }
+    }   
+
+    return $ssh;
+}
+
+sub _open_ssh_pass {
+    my ( $self, $hostname, $host ) = @_;
+
+    defined $hostname or croak "Failed to provide hostname.";
+    defined $host     or croak "Failed to provide host.";
+
+    open my $in_garb,  '<', '/dev/null';
+    open my $out_garb, '>', '/dev/null';
+    open my $err_garb, '>', '/dev/null';
+
+    my $ssh = Net::OpenSSH->new(
+        $host->{'ipaddr'},
+        'user'              => $host->{'username'},
+        'port'              => $host->{'port'},
+        'password'          => $host->{'password'},
+        'default_stdout_fh' => $out_garb,
+        'default_stderr_fh' => $err_garb,
+        'default_stdin_fh'  => $in_garb,
+        'ssh_cmd'           => $self->config->ssh,
+        'scp_cmd'           => $self->config->scp,
+        'master_opts'       => [
+            -o => 'StrictHostKeyChecking=no',
+            -o => 'CheckHostIP=no',
+            -o => 'GSSAPIAuthentication=no',
+            -o => 'PubkeyAuthentication=yes',
+        ],
+    );  
+
+    if ( $ssh->error ) { 
+        carp "Failed to SSH to '$hostname': ${\$ssh->error}.";
+        return 1;
+    }   
 
     return $ssh;
 }
@@ -895,7 +934,7 @@ sub _parse_command_set {
 
     $self->commands( @{ $command_set{'commands'} } );
     $self->hosts( @{ $command_set{'hosts'} } );
-    $self->group( @{ $command_set{'groups'} } );
+    $self->groups( @{ $command_set{'groups'} } );
     $self->all_hosts( $command_set{'all_hosts'} );
     $self->reason( $command_set{'reason'} );
 
@@ -910,6 +949,16 @@ sub _backup {
     }
 
     return $_backup{$self};
+}
+
+sub _no_key {
+    my ( $self, $no_key ) = @_;
+
+    if ( defined $no_key ) {
+        $_no_key{$self} = $no_key;
+    }
+
+    return $_no_key{$self};
 }
 
 1;
