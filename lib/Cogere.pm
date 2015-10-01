@@ -688,7 +688,7 @@ sub _open_ssh {
 
     if ( $self->_no_key ) {
         ReadMode('noecho');
-        printf "Enter password for %s\@%s: ", $host->{'username'}, $hostname;
+        printf "%s\@%s's password: ", $host->{'username'}, $hostname;
         chomp( $host->{'password'} = <STDIN> );
         ReadMode(0);
         print "\n";
