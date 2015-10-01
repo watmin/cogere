@@ -147,11 +147,6 @@ Adds the supplied host to the hosts configuration. The command must be provided 
 Example:
 ```
 $ cogere --new-host --hostname cognitio --ipaddr 172.16.0.6
-/usr/bin/ssh-copy-id: INFO: attempting to log in with the new key(s), to filter out any that are already installed
-/usr/bin/ssh-copy-id: INFO: 1 key(s) remain to be installed -- if you are prompted now it is to install the new keys
-WARNING : Unauthorized access to this system is forbidden and will be
-prosecuted by law. By accessing this system, you agree that your actions
-may be monitored if unauthorized usage is suspected.
 cogere@172.16.0.6's password:
 ```
 

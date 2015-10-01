@@ -14,7 +14,6 @@ fieldhash my %_ssh;
 fieldhash my %_scp;
 fieldhash my %_ssh_keygen;
 fieldhash my %_ssh_keyscan;
-fieldhash my %_ssh_copy_id;
 fieldhash my %_hosts_dir;
 fieldhash my %_hosts_conf;
 fieldhash my %_keys_dir;
@@ -91,19 +90,6 @@ sub ssh_keyscan {
     }
 
     return $_ssh_keyscan{$self};
-}
-
-sub ssh_copy_id {
-    my ( $self, $ssh_copy_id ) = @_;
-
-    if ( !defined $_ssh_copy_id{$self} and defined $ssh_copy_id ) {
-        $_ssh_copy_id{$self} = $ssh_copy_id;
-    }
-    elsif ( defined $_ssh_copy_id{$self} and defined $ssh_copy_id ) {
-        carp "The ssh-copy-id binary has already been defined.";
-    }
-
-    return $_ssh_copy_id{$self};
 }
 
 sub hosts_dir {
@@ -335,7 +321,6 @@ sub _set_var {
         case /^scp$/          { $self->scp($val) }
         case /^ssh-keygen$/   { $self->ssh_keygen($val) }
         case /^ssh-keyscan$/  { $self->ssh_keyscan($val) }
-        case /^ssh-copy-id$/  { $self->ssh_copy_id($val) }
         case /^hosts_dir$/    { $self->hosts_dir($val) }
         case /^hosts_conf$/   { $self->hosts_conf($val) }
         case /^keys_dir$/     { $self->keys_dir($val) }
@@ -408,9 +393,6 @@ sub _check_cmd_vars {
 
     $self->ssh_keyscan or croak "The ssh-keyscan binary not defined.";
     croak "The binary ssh-keyscan '${\$self->ssh_keyscan}' not found." if !-x $self->ssh_keyscan;
-
-    $self->ssh_copy_id or croak "The ssh-copy-id binary not defined.";
-    croak "The binary ssh-copy-id '${\$self->ssh_copy_id}' not found." if !-x $self->ssh_copy_id;
 
     return;
 }
