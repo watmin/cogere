@@ -170,11 +170,9 @@ sub resolve_hostname {
 }
 
 sub remove_fingerprint {
-    my ( $self, $hostname, $host ) = @_;
+    my ( $self, $ipaddr ) = @_;
 
-    defined $hostname or croak "Failed to provide hostname.";
-
-    my $ipaddr = $host->{'ipaddr'} || $self->resolve_hostname($hostname);
+    defined $ipaddr or croak "Failed to provide IP address.";
 
     my $cmd = $self->_cogere_config->ssh_keygen;
     

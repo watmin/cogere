@@ -180,7 +180,7 @@ if ( defined $options{'cleanup-host'} ) {
 }
 
 if ( defined $options{'remove-fingerprint'} ) {
-    $cogere->remove_fingerprint( $options{'hostname'} );
+    $cogere->remove_fingerprint( $options{'ipaddr'} );
     exit;
 }
 
@@ -284,8 +284,8 @@ Operations:
                      Requires --hostname
   --remove-fingerprint
                    Remove the fingerprint from the known_hosts file for the
-                     supplied hostname
-                     Requires --hostname
+                     supplied IP address
+                     Requires --ipaddr
 
 Options:
   --help              Shows this output

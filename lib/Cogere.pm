@@ -37,6 +37,7 @@ fieldhash my %_stop_on_fail;
 fieldhash my %_use_default_key;
 fieldhash my %_backup;
 fieldhash my %_no_key;
+fieldhash my %_new_host;
 fieldhash my %_all_hosts;
 
 sub new {
@@ -195,6 +196,8 @@ sub new_host {
         $self->hosts_config->validate_groups( @{ $args{'groups'} } );
     }
 
+    $self->_new_host(1);
+
     if ( !$self->use_default_key ) {
         $self->_no_key(1);
         $self->stop_on_fail(1);
@@ -232,6 +235,8 @@ sub new_host {
             return 1;
         }
     }
+
+    $self->_new_host(0);
 
     print "Successfully added '$args{'hostname'}'.\n";
 
@@ -300,10 +305,9 @@ sub update {
 }
 
 sub remove_fingerprint {
-    my ( $self, $hostname ) = @_;
+    my ( $self, $ipaddr ) = @_;
 
-    my $host = $self->hosts_config->get_host($hostname);
-    $self->util->remove_fingerprint( $hostname, $host );
+    $self->util->remove_fingerprint($ipaddr);
 
     return;
 }
@@ -880,7 +884,7 @@ sub _connect_to_host {
     my $source = $self->scp_source;
     my $target = $self->scp_target;
 
-    if ( $hostname ne $self->config->default_key ) {
+    if ( !$self->_new_host ) {
         $self->util->verify_host_key( $hostname, $host ) and return 1;
     }
 
@@ -959,6 +963,16 @@ sub _no_key {
     }
 
     return $_no_key{$self};
+}
+
+sub _new_host {
+    my ( $self, $new_host ) = @_;
+
+    if ( defined $new_host ) {
+        $_new_host{$self} = $new_host;
+    }
+
+    return $_new_host{$self};
 }
 
 1;
