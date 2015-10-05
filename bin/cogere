@@ -51,7 +51,6 @@ GetOptions(
     'f|config'           => \$options{'config'},
     'h|host=s@'          => \$options{'host'},
     'r|reason=s'         => \$options{'reason'},
-    'rekey-hosts'        => \$options{'rekey-hosts'},
     'new-host'           => \$options{'new-host'},
     'del-host'           => \$options{'del-host'},
     'hostname=s'         => \$options{'hostname'},
@@ -73,9 +72,6 @@ GetOptions(
     't|scp-target=s'     => \$options{'scp-target'},
     'scp-mkdir'          => \$options{'scp-mkdir'},
     'scp-only'           => \$options{'scp-only'},
-    'default-key'        => \$options{'default-key'},
-    'show-default'       => \$options{'show-default'},
-    'new-default'        => \$options{'new-default'},
     'cleanup-host'       => \$options{'cleanup-host'},
     'commands-file=s'    => \$options{'commands-file'},
     'remove-fingerprint' => \$options{'remove-fingerprint'},
@@ -205,11 +201,6 @@ if ( defined $options{'all'} ) {
 $cogere->hosts( @{ $options{'host'} } );
 $cogere->groups( @{ $options{'group'} } );
 
-if ( defined $options{'rekey-hosts'} ) {
-    $cogere->rekey_hosts;
-    exit;
-}
-
 if ( defined $options{'scp-mkdir'} ) {
     $cogere->scp_mkdir(1);
 }
@@ -254,13 +245,8 @@ Operations:
                      Requires -r|--reason
   --new-host       Creates new host entry and keys remote host.
                      Requires --hostname. Optionally --ipaddr --username --port
-                     Optionally can use --default-key to connect using
-                     default SSH key rather than password authentication
   --del-host       Removes host entry and remove key from remote host
                      Requires --hostname
-  --rekey-hosts    Creates new SSH key, removes old SSH key and installs
-                     new SSH key on remote host.
-                     Requires -h|--host
   -g|--group       Group to connect to, can be provided multiple times. Commands
                      are executed on groups if no other operations provided.
                      Requires -r|--reason
@@ -278,8 +264,6 @@ Operations:
                      Requires -s|--scp-source
   --scp-mkdir      Creates target directory on the remote server
   --scp-only       Only copy files to remote hosts
-  --new-default    Create a new default SSH key
-  --show-default   Prints the default public key
   --cleanup-host   Removes all entries for supplied host
                      Requires --hostname
   --remove-fingerprint
@@ -301,8 +285,6 @@ Options:
   --update            Updates a field in the hosts configuration
                         Requires --hostname.
                         Accepts --ipaddr, --port, --username.
-  --default-key       Uses the default SSH key rather than password
-                        when adding host
   -r|--reason         Explanation of the commands you are running
   -a|--all            Builds a group of all defined hosts.
   -F|--fork           Forks supplied number of connections and waits for them

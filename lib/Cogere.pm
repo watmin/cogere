@@ -7,10 +7,8 @@ use Cogere::HostsManager;
 use Cogere::Util;
 use Cogere::HostsConfig;
 use Cogere::Config;
-use Cogere::Commands;
 
 use Net::OpenSSH;
-use Term::ReadKey;
 use Parallel::ForkManager;
 
 use Hash::Util::FieldHash qw/fieldhash/;
@@ -33,11 +31,6 @@ fieldhash my %_scp_mkdir;
 fieldhash my %_scp_source;
 fieldhash my %_scp_target;
 fieldhash my %_scp_only;
-fieldhash my %_stop_on_fail;
-fieldhash my %_use_default_key;
-fieldhash my %_backup;
-fieldhash my %_no_key;
-fieldhash my %_new_host;
 fieldhash my %_all_hosts;
 
 sub new {
@@ -63,7 +56,6 @@ sub new {
 
     my %hosts_manager_args = (
         'hosts-config' => $self->hosts_config,
-        'default_key'  => $self->config->default_key,
     );
     my $hosts_manager = Cogere::HostsManager->new(%hosts_manager_args);
     $self->hosts_manager($hosts_manager);
@@ -103,88 +95,6 @@ sub list_members {
     return;
 }
 
-sub print_default_key {
-    my ($self) = @_;
-
-    $self->util->print_default_key;
-
-    return;
-}
-
-sub new_default_key {
-    my ($self) = @_;
-
-    my ( $password, $remoteid ) = $self->util->new_default_key( $self->config->default_key );
-    $self->hosts_config->new_host(
-        'hostname' => $self->config->default_key,
-        'password' => $password,
-        'remoteid' => $remoteid,
-    );
-    $self->util->print_default_key;
-
-    return;
-}
-
-sub key_from_default {
-    my ( $self, $hostname ) = @_;
-
-    $self->stop_on_fail(1);
-
-    my $host = $self->hosts_config->get_host($hostname);
-    $host    = $self->util->add_defaults( $hostname, $host );
-
-    $self->util->copy_default_key($hostname);
-    $self->_backup( $self->util->backup_key($hostname) );
-    my ( $password, $remoteid ) = $self->util->gen_key($hostname);
-
-    my %command_add = Cogere::Commands::add_remote_key(
-        'hostname'   => $hostname,
-        'host'       => $host,
-        'public-key' => $host->{'public-key'},
-    );
-    $self->_parse_command_set(%command_add);
-
-    my $failed_new = $self->connect;
-    if ($failed_new) {
-        carp "Failed to add new key to '$hostname'.";
-        $self->cleanup_host($hostname);
-        return 1;
-    }
-
-    $self->hosts_config->del_host(
-        'hostname' => $hostname,
-    );
-    $self->util->del_key(
-        'hostname' => $hostname,
-        'backup'   => $self->_backup,
-    );
-
-    $self->hosts_config->new_host(
-        'hostname' => $hostname,
-        'remoteid' => $remoteid,
-        'password' => $password,
-        'username' => $host->{'username'},
-        'ipaddr'   => $host->{'ipaddr'},
-        'port'     => $host->{'port'},
-    );
-
-    my %command_del = Cogere::Commands::del_remote_key(
-        'hostname' => $hostname,
-        'remoteid' => $host->{'remoteid'},
-    );
-    $self->_parse_command_set(%command_del);
-
-    $self->_backup(0);
-
-    my $failed_del = $self->connect;
-    if ($failed_del) {
-        carp "Failed to remove default key from '$hostname'.";
-        return 1;
-    }
-
-    return;
-}
-
 sub new_host {
     my ( $self, %args ) = @_;
 
@@ -196,49 +106,9 @@ sub new_host {
         $self->hosts_config->validate_groups( @{ $args{'groups'} } );
     }
 
-    $self->_new_host(1);
+    $self->hosts_config->new_host(%args);
 
-    if ( !$self->use_default_key ) {
-        $self->_no_key(1);
-        $self->stop_on_fail(1);
-        ( $args{'password'}, $args{'remoteid'} ) = $self->util->gen_key( $args{'hostname'} );
-        $self->hosts_config->new_host(%args);
-
-        my $host = $self->hosts_config->get_host( $args{'hostname'} );
-
-        my %command_set = Cogere::Commands::copy_key(
-            'hostname'   => $args{'hostname'},
-            'public-key' => $host->{'public-key'},
-        );
-        $self->_parse_command_set(%command_set);
-
-        my $failure = $self->connect;
-
-        if ( $failure ) {
-            carp "Failed to copy key to '$args{'hostname'}'.";
-            $self->cleanup_host($args{'hostname'});
-            return 1;
-        }
-        $self->_no_key(0);
-    }
-    else {
-        my $def = $self->hosts_config->get_host( $self->config->default_key );
-        $args{'password'} = $def->{'password'};
-        $args{'remoteid'} = $def->{'remoteid'};
-        $self->hosts_config->new_host(%args);
-        
-        my $failure = $self->key_from_default( $args{'hostname'} );
-
-        if ( $failure ) {
-            carp "Failed to key '$args{'hostname'}' using default key.";
-            $self->cleanup_host($args{'hostname'});
-            return 1;
-        }
-    }
-
-    $self->_new_host(0);
-
-    print "Successfully added '$args{'hostname'}'.\n";
+    printf "Successfully added '%s'.\n", $args{'hostname'};
 
     if ( $args{'groups'} ) {
         $self->hosts_config->join_group(
@@ -255,25 +125,7 @@ sub del_host {
 
     defined $hostname or croak "Failed to provide hostname.";
 
-    my $host = $self->hosts_config->get_host($hostname);
-    $host = $self->util->add_defaults( $hostname, $host );
-
-    my %command_set = Cogere::Commands::del_remote_key(
-        'hostname' => $hostname,
-        'remoteid' => $host->{'remoteid'},
-    );
-    $self->_parse_command_set(%command_set);
-
-    my $failure = $self->connect;
-    
-    if ( $failure ) {
-        carp "Failed to delete remote key '$hostname'.";
-        $self->cleanup_host($hostname);
-        return 1;
-    }
-
     $self->hosts_config->del_host( 'hostname' => $hostname );
-    $self->util->del_key( 'hostname' => $hostname );
 
     print "Sucessfully deleted '$hostname'.\n";
 
@@ -290,8 +142,6 @@ sub cleanup_host {
     if ($host) {
         $self->hosts_config->del_host( 'hostname' => $hostname );
     }
-
-    $self->util->del_key( 'hostname' => $hostname );
 
     return;
 }
@@ -523,97 +373,11 @@ sub connect {
 
     my $failure = $self->_run_commands;
 
-    if ( $failure and $self->stop_on_fail ) {
+    if ($failure) {
         return 1;
     }
 
     return;
-}
-
-sub rekey_hosts {
-    my ($self) = @_;
-
-    $self->hosts or croak "No hosts provided.";
-
-    my $failed;
-
-    for my $hostname ( @{ $self->targets } ) {
-        my $host = $self->hosts_config->get_host($hostname);
-
-        $self->_backup( $self->util->backup_key($hostname) );
-        my ( $password, $remoteid ) = $self->util->gen_key($hostname);
-
-        my %command_add = Cogere::Commands::add_remote_key(
-            'hostname'   => $hostname,
-            'public-key' => $host->{'public-key'},
-        );
-        $self->_parse_command_set(%command_add);
-
-        my $failed_add = $self->connect;
-        if ($failed_add) {
-            $failed = 1;
-            carp "Failed to add new key to '$hostname'.";
-            next;
-        }
-
-        $self->hosts_config->del_host(
-            'hostname'        => $hostname,
-            'preserve-groups' => 1,
-        );
-        $self->util->del_key(
-            'hostname' => $hostname,
-            'backup'   => $self->_backup,
-        );
-
-        $self->hosts_config->new_host(
-            'hostname' => $hostname,
-            'remoteid' => $remoteid,
-            'password' => $password,
-            'username' => $host->{'username'},
-            'ipaddr'   => $host->{'ipaddr'},
-            'port'     => $host->{'port'},
-        );
-
-        my %command_del = Cogere::Commands::del_remote_key(
-            'hostname' => $hostname,
-            'remoteid' => $host->{'remoteid'},
-        );
-        $self->_parse_command_set(%command_del);
-
-        $self->_backup(0);
-
-        my $failed_del = $self->connect;
-        if ($failed_del) {
-            $failed = 1;
-            carp "Failed to remove old key from '$hostname'.";
-            next;
-        }
-    }
-
-    return $failed;
-}
-
-sub stop_on_fail {
-    my ( $self, $stop ) = @_;
-
-    if ( !defined $_stop_on_fail{$self} and defined $stop ) {
-        $_stop_on_fail{$self} = $stop;
-    }
-
-    return $_stop_on_fail{$self};
-}
-
-sub use_default_key {
-    my ( $self, $use_default_key ) = @_;
-
-    if ( !defined $_use_default_key{$self} and defined $use_default_key ) {
-        $_use_default_key{$self} = $use_default_key;
-    }
-    elsif ( defined $_use_default_key{$self} and defined $use_default_key ) {
-        carp "Cogere use_default_key already defined.";
-    }
-
-    return $_use_default_key{$self};
 }
 
 sub user {
@@ -687,35 +451,6 @@ sub _open_ssh {
     defined $hostname or croak "Failed to provide hostname.";
     defined $host     or croak "Failed to provide host.";
 
-    my $ssh;
-
-    if ( $self->_no_key ) {
-        ReadMode('noecho');
-        printf "%s\@%s's password: ", $host->{'username'}, $hostname;
-        chomp( $host->{'password'} = <STDIN> );
-        ReadMode(0);
-        print "\n";
-
-        $ssh = $self->_open_ssh_pass( $hostname, $host );
-    }
-    else {
-        $ssh = $self->_open_ssh_key( $hostname, $host );
-    }
-
-    if ( $ssh == 1 ) {
-        carp "Failed to create ssh object.";
-        return 1;
-    }
-
-    return $ssh;
-}
-
-sub _open_ssh_key {
-    my ( $self, $hostname, $host ) = @_;
-
-    defined $hostname or croak "Failed to provide hostname.";
-    defined $host     or croak "Failed to provide host.";
-
     open my $in_garb,  '<', '/dev/null';
     open my $out_garb, '>', '/dev/null';
     open my $err_garb, '>', '/dev/null';
@@ -724,52 +459,14 @@ sub _open_ssh_key {
         $host->{'ipaddr'},
         'user'              => $host->{'username'},
         'port'              => $host->{'port'},
-        'passphrase'        => $host->{'password'},
-        'key_path'          => $host->{'private-key'},
+        'key_path'          => $self->config->key,
         'default_stdout_fh' => $out_garb,
         'default_stderr_fh' => $err_garb,
         'default_stdin_fh'  => $in_garb,
         'ssh_cmd'           => $self->config->ssh,
         'scp_cmd'           => $self->config->scp,
         'master_opts'       => [
-            -o => 'StrictHostKeyChecking=no',
-            -o => 'CheckHostIP=no',
-            -o => 'GSSAPIAuthentication=no',
-            -o => 'PubkeyAuthentication=yes',
-        ],
-    );  
-
-    if ( $ssh->error ) { 
-        carp "Failed to SSH to '$hostname': ${\$ssh->error}.";
-        return 1;
-    }   
-
-    return $ssh;
-}
-
-sub _open_ssh_pass {
-    my ( $self, $hostname, $host ) = @_;
-
-    defined $hostname or croak "Failed to provide hostname.";
-    defined $host     or croak "Failed to provide host.";
-
-    open my $in_garb,  '<', '/dev/null';
-    open my $out_garb, '>', '/dev/null';
-    open my $err_garb, '>', '/dev/null';
-
-    my $ssh = Net::OpenSSH->new(
-        $host->{'ipaddr'},
-        'user'              => $host->{'username'},
-        'port'              => $host->{'port'},
-        'password'          => $host->{'password'},
-        'default_stdout_fh' => $out_garb,
-        'default_stderr_fh' => $err_garb,
-        'default_stdin_fh'  => $in_garb,
-        'ssh_cmd'           => $self->config->ssh,
-        'scp_cmd'           => $self->config->scp,
-        'master_opts'       => [
-            -o => 'StrictHostKeyChecking=no',
-            -o => 'CheckHostIP=no',
+            -o => 'StrictHostKeyChecking=yes',
             -o => 'GSSAPIAuthentication=no',
             -o => 'PubkeyAuthentication=yes',
         ],
@@ -883,15 +580,6 @@ sub _connect_to_host {
     my $source = $self->scp_source;
     my $target = $self->scp_target;
 
-    if ( !$self->_new_host ) {
-        $self->util->verify_host_key( $hostname, $host ) and return 1;
-    }
-
-    if ( $self->_backup ) {
-        $host->{'private-key'} = "${\$self->config->keys_path}/$hostname.${\$self->_backup}";
-        $host->{'public-key'}  = "${\$self->config->keys_path}/$hostname.${\$self->_backup}.pub";
-    }
-
     my $ssh = $self->_open_ssh( $hostname, $host );
     return 1 if $ssh == 1;
 
@@ -926,52 +614,6 @@ sub _connect_to_host {
     }
 
     return;
-}
-
-sub _parse_command_set {
-    my ( $self, %command_set ) = @_;
-
-    defined $command_set{'commands'} or croak "Failed to provide commands.";
-    defined $command_set{'hosts'}    or croak "Failed to provide hosts.";
-    defined $command_set{'reason'}   or croak "Failed to provide reason.";
-
-    $self->commands( @{ $command_set{'commands'} } );
-    $self->hosts( @{ $command_set{'hosts'} } );
-    $self->groups( @{ $command_set{'groups'} } );
-    $self->all_hosts( $command_set{'all_hosts'} );
-    $self->reason( $command_set{'reason'} );
-
-    return;
-}
-
-sub _backup {
-    my ( $self, $backup ) = @_;
-
-    if ( defined $backup ) {
-        $_backup{$self} = $backup;
-    }
-
-    return $_backup{$self};
-}
-
-sub _no_key {
-    my ( $self, $no_key ) = @_;
-
-    if ( defined $no_key ) {
-        $_no_key{$self} = $no_key;
-    }
-
-    return $_no_key{$self};
-}
-
-sub _new_host {
-    my ( $self, $new_host ) = @_;
-
-    if ( defined $new_host ) {
-        $_new_host{$self} = $new_host;
-    }
-
-    return $_new_host{$self};
 }
 
 1;

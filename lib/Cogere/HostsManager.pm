@@ -9,19 +9,16 @@ use Carp;
 our $VERSION = 0.1;
 
 fieldhash my %_hosts_config;
-fieldhash my %_default_key;
 
 sub new {
     my ( $class, %args ) = @_;
 
     defined $args{'hosts-config'} or croak "Failed to provide Cogere::HostsConfig to Cogere::HostsManager.";
-    defined $args{'default_key'}  or croak "Failed to provide default_key to Cogere::HostsManager.";
 
     my ( $self, $object );
     $self = bless \$object, $class;
 
     $self->_hosts_config( $args{'hosts-config'} );
-    $self->_default_key( $args{'default_key'} );
 
     return $self;
 }
@@ -98,7 +95,6 @@ sub clean_targets {
     my ( $self, @targets ) = @_;
 
     @targets = $self->_hosts_config->dedup(@targets);
-    @targets = grep { $_ ne $self->_default_key } @targets;
 
     return @targets;
 }
@@ -114,19 +110,6 @@ sub _hosts_config {
     }
 
     return $_hosts_config{$self};
-}
-
-sub _default_key {
-    my ( $self, $default_key ) = @_;
-
-    if ( !defined $_default_key{$self} and defined $default_key ) {
-        $_default_key{$self} = $default_key;
-    }
-    elsif ( defined $_default_key{$self} and defined $default_key ) {
-        carp "Cogere::HostsManager's default_key already defined.";
-    }
-
-    return $_default_key{$self};
 }
 
 sub _process_hosts {

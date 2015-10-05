@@ -13,13 +13,11 @@ our $VERSION = 0.1;
 fieldhash my %_ssh;
 fieldhash my %_scp;
 fieldhash my %_ssh_keygen;
-fieldhash my %_ssh_keyscan;
 fieldhash my %_hosts_dir;
 fieldhash my %_hosts_conf;
-fieldhash my %_keys_dir;
 fieldhash my %_default_user;
 fieldhash my %_default_port;
-fieldhash my %_default_key;
+fieldhash my %_key;
 fieldhash my %_log_type;
 fieldhash my %_log_dir;
 fieldhash my %_log_file;
@@ -79,19 +77,6 @@ sub ssh_keygen {
     return $_ssh_keygen{$self};
 }
 
-sub ssh_keyscan {
-    my ( $self, $ssh_keyscan ) = @_;
-
-    if ( !defined $_ssh_keyscan{$self} and defined $ssh_keyscan ) {
-        $_ssh_keyscan{$self} = $ssh_keyscan;
-    }
-    elsif ( defined $_ssh_keyscan{$self} and defined $ssh_keyscan ) {
-        carp "The ssh-keyscan binary has already been defined.";
-    }
-
-    return $_ssh_keyscan{$self};
-}
-
 sub hosts_dir {
     my ( $self, $hosts_dir ) = @_;
 
@@ -126,27 +111,6 @@ sub hosts_conf_path {
     return $hosts_conf_path;
 }
 
-sub keys_dir {
-    my ( $self, $keys_dir ) = @_;
-
-    if ( !defined $_keys_dir{$self} and defined $keys_dir ) {
-        $_keys_dir{$self} = $keys_dir
-    }
-    elsif ( !defined $_keys_dir{$self} and defined $keys_dir ) {
-        carp "The key directory has already been defined.";
-    }
-
-    return $_keys_dir{$self};
-}
-
-sub keys_path {
-    my ($self) = @_;
-
-    my $keys_path = "${\$self->hosts_dir}/${\$self->keys_dir}";
-
-    return $keys_path;
-}
-
 sub default_user {
     my ( $self, $default_user ) = @_;
 
@@ -173,17 +137,17 @@ sub default_port {
     return $_default_port{$self};
 }
 
-sub default_key {
-    my ( $self, $default_key ) = @_;
+sub key {
+    my ( $self, $key ) = @_;
 
-    if ( !defined $_default_key{$self} and defined $default_key ) {
-        $_default_key{$self} = $default_key
+    if ( !defined $_key{$self} and defined $key ) {
+        $_key{$self} = $key
     }
-    elsif ( !defined $_default_key{$self} and defined $default_key ) {
+    elsif ( !defined $_key{$self} and defined $key ) {
         carp "The default key file has already been defined.";
     }
 
-    return $_default_key{$self};
+    return $_key{$self};
 }
 
 sub log_type {
@@ -323,10 +287,9 @@ sub _set_var {
         case /^ssh-keyscan$/  { $self->ssh_keyscan($val) }
         case /^hosts_dir$/    { $self->hosts_dir($val) }
         case /^hosts_conf$/   { $self->hosts_conf($val) }
-        case /^keys_dir$/     { $self->keys_dir($val) }
         case /^default_user$/ { $self->default_user($val) }
         case /^default_port$/ { $self->default_port($val) }
-        case /^default_key$/  { $self->default_key($val) }
+        case /^key$/          { $self->key($val) }
         case /^log_type$/     { $self->log_type($val) }
         case /^log_dir$/      { $self->log_dir($val) }
         case /^log_file$/     { $self->log_file($val) }
@@ -391,9 +354,6 @@ sub _check_cmd_vars {
     $self->ssh_keygen or croak "The ssh-keygen binary not defined.";
     croak "The binary ssh-keygen '${\$self->ssh_keygen}' not found." if !-x $self->ssh_keygen;
 
-    $self->ssh_keyscan or croak "The ssh-keyscan binary not defined.";
-    croak "The binary ssh-keyscan '${\$self->ssh_keyscan}' not found." if !-x $self->ssh_keyscan;
-
     return;
 }
 
@@ -413,10 +373,6 @@ sub _check_hosts_vars {
     }
     croak "Hosts configuration '$hosts_conf_path' not found." if !-f $hosts_conf_path;
 
-    $self->keys_dir or croak "Key directory not defined.";
-    my $keys_path = $self->keys_path;
-    croak "Keys directory '$keys_path' not found." if !-d $keys_path;
-
     return;
 }
 
@@ -425,7 +381,7 @@ sub _check_default_vars {
 
     $self->default_user or croak "Default user not defined.";
     $self->default_port or croak "Default port not defined.";
-    $self->default_key  or croak "Default key not defined.";
+    $self->key          or croak "Default key not defined.";
 
     return;
 }

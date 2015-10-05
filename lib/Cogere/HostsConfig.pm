@@ -38,14 +38,9 @@ sub get_host {
     defined $hostname or croak "Failed to provide hostname to Cogere::HostsConfig::get_host";
 
     my $host = $self->_hosts_config->{'hosts'}{$hostname};
-    if ( !$host ) {
+    if ( !defined $host ) {
         return;
     }
-
-    my $keys_path = $self->_cogere_config->keys_path;
-
-    $host->{'private-key'} = "$keys_path/$hostname";
-    $host->{'public-key'}  = "$keys_path/$hostname.pub";
 
     return $host;
 }
@@ -96,15 +91,9 @@ sub new_host {
     my ( $self, %args ) = @_;
 
     defined $args{'hostname'} or croak "Failed to provide hostname to Cogere::HostsConfig::new_host";
-    defined $args{'password'} or croak "Failed to provide password to Cogere::HostsConfig::new_host";
-    defined $args{'remoteid'} or croak "Failed to provide remote ID to Cogere::HostsConfig::new_host";
 
     my $yaml = $self->_yaml;
-
-    my $host = {
-        'password' => $args{'password'},
-        'remoteid' => $args{'remoteid'},
-    };
+    my $host = {};
 
     if ( defined $args{'username'} ) {
         $host->{'username'} = $args{'username'};
@@ -137,21 +126,6 @@ sub del_host {
 
     my $yaml = $self->_yaml;
     delete $yaml->[0]{'hosts'}{$args{'hostname'}};
-    $yaml->write($self->_config_file);
-
-    return;
-}
-
-sub change_ipaddr {
-    my ( $self, %args ) = @_;
-
-    defined $args{'hostname'} or croak "Failed to provide hostname to Cogere::HostsConfig::change_ipaddr";
-    defined $args{'ipaddr'}   or croak "Failed to provide IP address to Cogere::HostsConfig::change_ipaddr";
-
-    $self->validate_hosts( $args{'hostname'} );
-
-    my $yaml = $self->_yaml;
-    $yaml->[0]{'hosts'}{$args{'hostname'}}{'ipaddr'} = $args{'ipaddr'};
     $yaml->write($self->_config_file);
 
     return;
@@ -291,7 +265,7 @@ sub validate_hosts {
     my ( $self, @hosts ) = @_;
 
     for my $host (@hosts) {
-        $self->get_host($host) or croak "Invalid host '$host'.";
+        defined $self->get_host($host) or croak "Invalid host '$host'.";
     }
 
     return;
