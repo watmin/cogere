@@ -5,6 +5,7 @@ use warnings;
 
 use Logstash::Logger;
 
+use Socket;
 use POSIX qw/strftime/;
 use JSON;
 
