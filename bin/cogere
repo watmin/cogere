@@ -32,7 +32,7 @@ use warnings;
 use FindBin;
 use lib "$FindBin::Bin/../lib";
 
-use Cogere;
+use Net::SSH::Cogere;
 
 use Getopt::Long qw/:config no_ignore_case/;
 
@@ -43,7 +43,7 @@ if ( !@ARGV ) {
     exit;
 }
 
-my $default_config = '/opt/sv/cogere/cogere.conf';
+my $default_config = '/etc/cogere/cogere.conf';
 
 my %options;
 GetOptions(
@@ -94,7 +94,7 @@ my %cogere_args = (
     'user'   => $ENV{'SUDO_USER'},
     'config' => $default_config,
 );
-my $cogere = Cogere->new(%cogere_args);
+my $cogere = Net::SSH::Cogere->new(%cogere_args);
 
 if ( defined $options{'list-hosts'} ) {
     $cogere->list_hosts;

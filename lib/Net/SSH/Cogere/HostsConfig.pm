@@ -1,9 +1,9 @@
-package Cogere::HostsConfig;
+package Net::SSH::Cogere::HostsConfig;
 
 use strict;
 use warnings;
 
-use Cogere::Util;
+use Net::SSH::Cogere::Util;
 
 use YAML::Tiny;
 use List::MoreUtils qw/uniq/;
@@ -20,8 +20,8 @@ fieldhash my %_cogere_config;
 sub new {
     my ( $class, %args ) = @_;
 
-    defined $args{'hosts-config'}  or croak "Failed to provide hosts config to Cogere::HostsConfig";
-    defined $args{'cogere-config'} or croak "Failed to provide cogere config to Cogere::HostsConfig";
+    defined $args{'hosts-config'}  or croak "Failed to provide hosts config to Net::SSH::Cogere::HostsConfig";
+    defined $args{'cogere-config'} or croak "Failed to provide cogere config to Net::SSH::Cogere::HostsConfig";
 
     my ( $self, $object );
     $self = bless \$object, $class;
@@ -35,7 +35,7 @@ sub new {
 sub get_host {
     my ( $self, $hostname ) = @_;
 
-    defined $hostname or croak "Failed to provide hostname to Cogere::HostsConfig::get_host";
+    defined $hostname or croak "Failed to provide hostname to Net::SSH::Cogere::HostsConfig::get_host";
 
     my $host = $self->_hosts_config->{'hosts'}{$hostname};
     if ( !defined $host ) {
@@ -48,7 +48,7 @@ sub get_host {
 sub get_group {
     my ( $self, $groupname ) = @_;
 
-    defined $groupname or croak "Failed to provide group name to Cogere::HostsConfig::get_group";
+    defined $groupname or croak "Failed to provide group name to Net::SSH::Cogere::HostsConfig::get_group";
 
     my $group = $self->_hosts_config->{'groups'}{$groupname};
 
@@ -77,7 +77,7 @@ sub get_all_groups {
 sub get_members {
     my ( $self, $groupname ) = @_;
 
-    defined $groupname or croak "Failed to provide group name to Cogere::HostsConfig::get_members";
+    defined $groupname or croak "Failed to provide group name to Net::SSH::Cogere::HostsConfig::get_members";
 
     my $members_ref = $self->_hosts_config->{'groups'}{$groupname};
     $members_ref or croak "Group '$groupname' not found.";
@@ -90,7 +90,7 @@ sub get_members {
 sub new_host {
     my ( $self, %args ) = @_;
 
-    defined $args{'hostname'} or croak "Failed to provide hostname to Cogere::HostsConfig::new_host";
+    defined $args{'hostname'} or croak "Failed to provide hostname to Net::SSH::Cogere::HostsConfig::new_host";
 
     my $yaml = $self->_yaml;
     my $host = {};
@@ -116,7 +116,7 @@ sub new_host {
 sub del_host {
     my ( $self, %args ) = @_;
 
-    defined $args{'hostname'} or croak "Failed to provide hostname to Cogere::HostsConfig::del_host";
+    defined $args{'hostname'} or croak "Failed to provide hostname to Net::SSH::Cogere::HostsConfig::del_host";
 
     $self->validate_hosts( $args{'hostname'} );
 
@@ -134,7 +134,7 @@ sub del_host {
 sub cleanup_host {
     my ( $self, %args ) = @_;
 
-    defined $args{'hostname'} or croak "Failed to provide hostname to Cogere::HostsConfig::cleanup_host";
+    defined $args{'hostname'} or croak "Failed to provide hostname to Net::SSH::Cogere::HostsConfig::cleanup_host";
 
     $self->_leave_all_groups(%args);
     $self->del_host(%args);
@@ -145,8 +145,8 @@ sub cleanup_host {
 sub new_group {
     my ( $self, %args ) = @_;
 
-    defined $args{'groups'} or croak "Failed to provide group name to Cogere::HostsConfig::new_group";
-    defined $args{'hosts'}  or croak "Failed to provide hosts to Cogere::HostsConfig::new_group";
+    defined $args{'groups'} or croak "Failed to provide group name to Net::SSH::Cogere::HostsConfig::new_group";
+    defined $args{'hosts'}  or croak "Failed to provide hosts to Net::SSH::Cogere::HostsConfig::new_group";
 
     my @dirty_groups = @{ $args{'groups'} };
     my @dirty_hosts  = @{ $args{'hosts'} };
@@ -174,7 +174,7 @@ sub new_group {
 sub del_group {
     my ( $self, %args ) = @_;
 
-    defined $args{'groups'} or croak "Failed to provide group name to Cogere::HostsConfig::del_group";
+    defined $args{'groups'} or croak "Failed to provide group name to Net::SSH::Cogere::HostsConfig::del_group";
 
     my @dirty_groups = @{ $args{'groups'} };
     my @groups       = $self->dedup(@dirty_groups);
@@ -195,8 +195,8 @@ sub del_group {
 sub join_group {
     my ( $self, %args ) = @_;
 
-    defined $args{'groups'} or croak "Failed to provide group name to Cogere::HostsConfig::join_group";
-    defined $args{'hosts'}  or croak "Failed to provide hosts to Cogere::HostsConfig::join_group";
+    defined $args{'groups'} or croak "Failed to provide group name to Net::SSH::Cogere::HostsConfig::join_group";
+    defined $args{'hosts'}  or croak "Failed to provide hosts to Net::SSH::Cogere::HostsConfig::join_group";
 
     my @dirty_groups = @{ $args{'groups'} };
     my @dirty_hosts  = @{ $args{'hosts'} };
@@ -228,8 +228,8 @@ sub join_group {
 sub leave_group {
     my ( $self, %args ) = @_;
 
-    defined $args{'groups'} or croak "Failed to provide group name to Cogere::HostsConfig::leave_group";
-    defined $args{'hosts'}  or croak "Failed to provide hosts to Cogere::HostsConfig::leave_group";
+    defined $args{'groups'} or croak "Failed to provide group name to Net::SSH::Cogere::HostsConfig::leave_group";
+    defined $args{'hosts'}  or croak "Failed to provide hosts to Net::SSH::Cogere::HostsConfig::leave_group";
 
     my @dirty_groups = @{ $args{'groups'} };
     my @dirty_hosts  = @{ $args{'hosts'} };
@@ -334,7 +334,7 @@ sub _cogere_config {
         $_cogere_config{$self} = $cogere_config;
     }
     elsif ( defined $_cogere_config{$self} and defined $cogere_config ) {
-        carp "Cogere::HostsConfig'g Cogere::Config already defined.";
+        carp "Net::SSH::Cogere::HostsConfig'g Net::SSH::Cogere::Config already defined.";
     }
 
     return $_cogere_config{$self};
@@ -344,7 +344,7 @@ sub _yaml {
     my ($self) = @_;
 
     my $yaml = YAML::Tiny->read($self->_config_file)
-      or croak "Cogere::HostsConfig failed to parse '${\$self->_config_file}': $!\n";
+      or croak "Net::SSH::Cogere::HostsConfig failed to parse '${\$self->_config_file}': $!\n";
 
     return $yaml;
 }
@@ -367,7 +367,7 @@ sub _hosts_config {
 sub _leave_all_groups {
     my ( $self, $hostname ) = @_;
 
-    defined $hostname or croak "Failed to provide hostname to Cogere::HostsConfig::_leave_all_groups";
+    defined $hostname or croak "Failed to provide hostname to Net::SSH::Cogere::HostsConfig::_leave_all_groups";
 
     my @groups = $self->get_all_groups;
 

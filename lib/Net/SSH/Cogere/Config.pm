@@ -1,4 +1,4 @@
-package Cogere::Config;
+package Net::SSH::Cogere::Config;
 
 use strict;
 use warnings;

@@ -1,4 +1,4 @@
-package Logstash::Logger;
+package Net::SSH::Cogere::Logger;
 
 use Sys::Hostname;
 use IO::Socket::INET;

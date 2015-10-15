@@ -1,9 +1,9 @@
-package Cogere::Util;
+package Net::SSH::Cogere::Util;
 
 use strict;
 use warnings;
 
-use Logstash::Logger;
+use Net::SSH::Cogere::Logger;
 
 use Socket;
 use POSIX qw/strftime/;
@@ -19,7 +19,7 @@ fieldhash my %_cogere_config;
 sub new {
     my ( $class, %args ) = @_;
 
-    defined $args{'cogere-config'} or croak "Failed to provide Cogere::Config to Cogere::Util";
+    defined $args{'cogere-config'} or croak "Failed to provide Net::SSH::Cogere::Config to Net::SSH::Cogere::Util";
 
     my ( $self, $object );
     $self = bless \$object, $class;
@@ -131,7 +131,7 @@ sub _cogere_config {
         $_cogere_config{$self} = $cogere_config;
     }   
     elsif ( defined $_cogere_config{$self} and defined $cogere_config ) { 
-        carp "Cogere::Util's Cogere::Config already defined.";
+        carp "Net::SSH::Cogere::Util's Net::SSH::Cogere::Config already defined.";
     }   
 
     return $_cogere_config{$self};

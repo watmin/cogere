@@ -1,4 +1,4 @@
-package Cogere::HostsManager;
+package Net::SSH::Cogere::HostsManager;
 
 use strict;
 use warnings;
@@ -13,7 +13,7 @@ fieldhash my %_hosts_config;
 sub new {
     my ( $class, %args ) = @_;
 
-    defined $args{'hosts-config'} or croak "Failed to provide Cogere::HostsConfig to Cogere::HostsManager.";
+    defined $args{'hosts-config'} or croak "Failed to provide Net::SSH::Cogere::HostsConfig to Net::SSH::Cogere::HostsManager.";
 
     my ( $self, $object );
     $self = bless \$object, $class;
@@ -106,7 +106,7 @@ sub _hosts_config {
         $_hosts_config{$self} = $hosts_config;
     }
     elsif ( defined $_hosts_config{$self} and defined $hosts_config ) {
-        carp "Cogere::HostManager's Cogere::HostsConfig already defined.";
+        carp "Net::SSH::Cogere::HostManager's Net::SSH::Cogere::HostsConfig already defined.";
     }
 
     return $_hosts_config{$self};

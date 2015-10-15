@@ -1,12 +1,12 @@
-package Cogere;
+package Net::SSH::Cogere;
 
 use strict;
 use warnings;
 
-use Cogere::HostsManager;
-use Cogere::Util;
-use Cogere::HostsConfig;
-use Cogere::Config;
+use Net::SSH::Cogere::HostsManager;
+use Net::SSH::Cogere::Util;
+use Net::SSH::Cogere::HostsConfig;
+use Net::SSH::Cogere::Config;
 
 use Net::OpenSSH;
 use Parallel::ForkManager;
@@ -36,7 +36,7 @@ fieldhash my %_all_hosts;
 sub new {
     my ( $class, %args ) = @_;
 
-    defined $args{'user'} or croak "Failed to provide user to Cogere.";
+    defined $args{'user'} or croak "Failed to provide user to Net::SSH::Cogere.";
 
     my ( $self, $object );
     $self = bless \$object, $class;
@@ -44,26 +44,26 @@ sub new {
     $self->user( $args{'user'} );
     delete $args{'user'};
 
-    my $config = Cogere::Config->new(%args);
+    my $config = Net::SSH::Cogere::Config->new(%args);
     $self->config($config);
 
     my %hosts_config_args = (
         'hosts-config'  => $self->config->hosts_conf_path,
         'cogere-config' => $self->config,
     );
-    my $hosts_config = Cogere::HostsConfig->new(%hosts_config_args);
+    my $hosts_config = Net::SSH::Cogere::HostsConfig->new(%hosts_config_args);
     $self->hosts_config($hosts_config);
 
     my %hosts_manager_args = (
         'hosts-config' => $self->hosts_config,
     );
-    my $hosts_manager = Cogere::HostsManager->new(%hosts_manager_args);
+    my $hosts_manager = Net::SSH::Cogere::HostsManager->new(%hosts_manager_args);
     $self->hosts_manager($hosts_manager);
 
     my %util_args = (
         'cogere-config' => $self->config,
     );
-    my $util = Cogere::Util->new(%util_args);
+    my $util = Net::SSH::Cogere::Util->new(%util_args);
     $self->util($util);
 
     return $self;
@@ -311,7 +311,7 @@ sub scp_source {
         $_scp_source{$self} = $scp_source;
     }
     elsif ( defined $_scp_source{$self} and defined $scp_source ) {
-        carp "Cogere scp source already defined.";
+        carp "Net::SSH::Cogere scp source already defined.";
     }
 
     return $_scp_source{$self};
@@ -324,7 +324,7 @@ sub scp_target {
         $_scp_target{$self} = $scp_target;
     }
     elsif ( defined $_scp_target{$self} and defined $scp_target ) {
-        carp "Cogere scp target already defined.";
+        carp "Net::SSH::Cogere scp target already defined.";
     }
 
     return $_scp_target{$self};
@@ -337,7 +337,7 @@ sub scp_mkdir {
         $_scp_mkdir{$self} = $scp_mkdir;
     }
     elsif ( defined $_scp_mkdir{$self} and defined $scp_mkdir ) {
-        carp "Cogere scp mkdir already defined.";
+        carp "Net::SSH::Cogere scp mkdir already defined.";
     }
 
     return $_scp_mkdir{$self};
@@ -350,7 +350,7 @@ sub scp_only {
         $_scp_only{$self} = $scp_only;
     }
     elsif ( defined $_scp_only{$self} and defined $scp_only ) {
-        carp "Cogere scp only already defined.";
+        carp "Net::SSH::Cogere scp only already defined.";
     }
 
     return $_scp_only{$self};
@@ -387,7 +387,7 @@ sub user {
         $_user{$self} = $user;
     }
     elsif ( defined $user and defined $user ) {
-        carp "Cogere user already defined.";
+        carp "Net::SSH::Cogere user already defined.";
     }
 
     return $_user{$self};
@@ -400,7 +400,7 @@ sub config {
         $_config{$self} = $config;
     }
     elsif ( defined $_config{$self} and defined $config ) {
-        carp "Cogere::Config already created.";
+        carp "Net::SSH::Cogere::Config already created.";
     }
 
     return $_config{$self};
@@ -413,7 +413,7 @@ sub hosts_config {
         $_hosts_config{$self} = $hosts_config;
     }
     elsif ( defined $_hosts_config{$self} and defined $hosts_config ) {
-        carp "Cogere's Cogere::HostsConfig already defined.";
+        carp "Net::SSH::Cogere's Net::SSH::Cogere::HostsConfig already defined.";
     }
 
     return $_hosts_config{$self};
@@ -426,7 +426,7 @@ sub hosts_manager {
         $_hosts_manager{$self} = $hosts_manager;
     }   
     elsif ( defined $_hosts_manager{$self} and defined $hosts_manager ) { 
-        carp "Cogere's Cogere::HostsManager already defined.";
+        carp "Net::SSH::Cogere's Net::SSH::Cogere::HostsManager already defined.";
     }   
 
     return $_hosts_manager{$self};
@@ -439,7 +439,7 @@ sub util {
         $_util{$self} = $util;
     }
     elsif ( defined $_util{$self} and defined $util ) {
-        carp "Cogere's Cogere::Util already defined.";
+        carp "Net::SSH::Cogere's Net::SSH::Cogere::Util already defined.";
     }
 
     return $_util{$self};
