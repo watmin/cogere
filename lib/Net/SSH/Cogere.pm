@@ -127,7 +127,7 @@ sub del_host {
 
     $self->hosts_config->del_host( 'hostname' => $hostname );
 
-    print "Sucessfully deleted '$hostname'.\n";
+    print "Successfully deleted '$hostname'.\n";
 
     return;
 }
