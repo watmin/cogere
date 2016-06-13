@@ -260,7 +260,7 @@ $ cogere -r 'forking' -a -F a \
 
 ###### --scp-source | -s , --scp-target | -t, --scp-only, --scp-mkdir
 
-Performs an scp on source file or directory to target directory on remote host. If `--scp-only` is used no command will be executed and can be witheld entirely. If `--scp-mkdir` is supplied the target directory is created with `mkdir -pv $target` on the remote host.
+Performs an scp on source file or directory to target directory on remote host. If `--scp-only` is used no command will be executed and can be withheld entirely. If `--scp-mkdir` is supplied the target directory is created with `mkdir -pv $target` on the remote host.
 
 **REQUIRES `--scp-source|-s`, `--scp-target|-t`**
 
